@@ -3,466 +3,1637 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gabi Gateway Admin</title>
+    <title>GABI Gateway – Admin Dashboard v1.0.2</title>
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23ff2a2a'/%3E%3Ctext x='50' y='75' font-size='70' text-anchor='middle' fill='white' font-family='Arial'%3EG%3C/text%3E%3C/svg%3E">
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Markdown Renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
     <style>
-        .terminal { background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; }
-        .chat-box { height: 400px; overflow-y: auto; }
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-tertiary: #1a1a1a;
+            --accent: #ff2a2a;
+            --accent-hover: #ff4444;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #666666;
+            --border: #2a2a2a;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --thinking-bg: rgba(255, 42, 42, 0.1);
+        }
+
+        * {
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Buttons */
+        .btn {
+            border: 1px solid var(--accent);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            background: transparent;
+            color: var(--text-primary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            color: black;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 42, 42, 0.2);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-active {
+            background: var(--accent) !important;
+            color: black !important;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        .btn-executing {
+            border: 2px solid var(--accent) !important;
+            box-shadow: 0 0 15px var(--accent) !important;
+        }
+
+        /* Model Select Dropdown */
+        .model-select {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+            padding: 0.25rem 2rem 0.25rem 0.75rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23ff2a2a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1rem;
+        }
+
+        .model-select:hover {
+            border-color: var(--accent);
+        }
+
+        .model-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255, 42, 42, 0.2);
+        }
+
+        .model-select option {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        /* Chat Messages */
+        .message-user {
+            background: linear-gradient(135deg, var(--accent), #ff4d4d);
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem 1rem 0 1rem;
+            max-width: 80%;
+            margin-left: auto;
+            box-shadow: 0 2px 8px rgba(255, 42, 42, 0.2);
+        }
+
+        .message-assistant {
+            background: var(--bg-tertiary);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 1rem 1rem 1rem;
+            max-width: 80%;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Thinking Steps - Im Chat integriert */
+        .thinking-steps-container {
+            background: var(--thinking-bg);
+            border-left: 3px solid var(--accent);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-family: 'Fira Code', monospace;
+        }
+
+        .thinking-step {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0;
+            border-bottom: 1px dashed rgba(255, 42, 42, 0.3);
+        }
+
+        .thinking-step:last-child {
+            border-bottom: none;
+        }
+
+        .thinking-step i {
+            color: var(--accent);
+            width: 20px;
+        }
+
+        .thinking-step .step-time {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            margin-left: auto;
+        }
+
+        /* Terminal */
+        .terminal {
+            background: #000000;
+            color: #00ff66;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .terminal-output {
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .terminal-input-line {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #00ff66;
+        }
+
+        .terminal-prompt {
+            color: #00ff66;
+            font-weight: bold;
+        }
+
+        /* Loading Animation */
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--bg-tertiary);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loader-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .loader-dots div {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .loader-dots div:nth-child(1) { animation-delay: -0.32s; }
+        .loader-dots div:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-online {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow: auto;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-tertiary);
+            color: var(--accent);
+        }
+
+        /* Chat Input Area */
+        .chat-input-container {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            resize: none;
+            flex: 1;
+            font-family: inherit;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255, 42, 42, 0.2);
+        }
+
+        .send-btn {
+            background: var(--accent);
+            color: black;
+            border: none;
+            border-radius: 1rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            height: fit-content;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px var(--accent);
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Grid Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            padding: 1.5rem;
+        }
+
+        .main-grid.shell-hidden {
+            grid-template-columns: 1fr;
+        }
+
+        .main-grid.shell-visible {
+            grid-template-columns: 2fr 1fr;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid.shell-visible {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Tool Panel */
+        .tool-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Typing Indicator */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-white font-sans">
+<body class="antialiased">
 
-    <header class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-800">
-        <div>
-            <h1 class="text-2xl font-bold text-blue-400">Gabi Gateway v1.0</h1>
-            <p class="text-sm text-gray-400">Admin-Konsole (Windows 11)</p>
+<!-- HEADER -->
+<header class="border-b border-[var(--border)] bg-[var(--bg-secondary)] sticky top-0 z-50">
+    <div class="container mx-auto px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <!-- Logo & Title -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[var(--accent)] rounded-lg flex items-center justify-center">
+                    <i class="fas fa-robot text-black text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-[var(--accent)]">GABI Gateway</h1>
+                    <p class="text-xs text-[var(--text-muted)]">Admin Dashboard v1.0.2</p>
+                </div>
+            </div>
+
+            <!-- System Info -->
+            <div id="system-info" class="flex flex-wrap items-center gap-4 text-sm">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-microchip text-[var(--text-muted)]"></i>
+                    <span id="os-info" class="text-[var(--text-secondary)]">System wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-database text-[var(--text-muted)]"></i>
+                    <span id="storage-info" class="text-[var(--text-secondary)]">-</span>
+                </div>
+                <!-- Whisper Status -->
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-microphone text-[var(--text-muted)]"></i>
+                    <span id="whisper-status" class="text-[var(--text-secondary)]">Whisper wird geladen...</span>
+                </div>
+                <!-- Telegram Status -->
+                <div class="flex items-center gap-2">
+                    <i class="fab fa-telegram text-[var(--text-muted)]"></i>
+                    <span id="telegram-status" class="text-[var(--text-secondary)]">Telegram wird geladen...</span>
+                </div>
+            </div>
+
+            <!-- LLM Info & Model Selector -->
+            <div class="flex items-center gap-3">
+                <div class="text-right">
+                    <div class="flex items-center gap-2" style="display: block;">
+                        <i class="fas fa-brain text-[var(--accent)]"></i>
+                        <select id="model-selector" class="model-select">
+                            <option value="">Modelle laden...</option>
+                        </select>
+                    </div>
+                    <div id="llm-status" class="text-xs flex items-center gap-1 mt-1" style="display: block;">
+                        <span class="status-badge status-offline">
+                            <i class="fas fa-circle text-xs"></i>
+                            Prüfe Verbindung...
+                        </span>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div id="status-badge" class="px-4 py-2 rounded-full bg-red-900 text-red-200">Checking...</div>
-    </header>
+    </div>
+</header>
 
-<!-- Nach dem Status-Badge, vor dem Hauptcontainer -->
-
-<!-- Memory Control Panel -->
-<div class="mb-4 grid grid-cols-2 md:grid-cols-4 gap-2">
-    <button onclick="showMemory()" class="bg-purple-600 px-4 py-2 rounded hover:bg-purple-500">
-        📚 Memory
-    </button>
-    <button onclick="showSkills()" class="bg-green-600 px-4 py-2 rounded hover:bg-green-500">
-        🛠️ Skills
-    </button>
-    <button onclick="showHeartbeat()" class="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500">
-        💓 Heartbeat
-    </button>
-    <button onclick="showMemoryStats()" class="bg-indigo-600 px-4 py-2 rounded hover:bg-indigo-500">
-        📊 Statistiken
-    </button>
-    <button onclick="archiveMemory()" class="bg-yellow-600 px-4 py-2 rounded hover:bg-yellow-500">
-        📦 Archivieren
-    </button>
-    <button onclick="resetMemory()" class="bg-red-600 px-4 py-2 rounded hover:bg-red-500">
-        ⚠️ Zurücksetzen
-    </button>
-<button onclick="generateSoul()" class="bg-pink-600 px-4 py-2 rounded hover:bg-pink-500">
-    🧬 Soul generieren
-</button>
-
-<button onclick="showSoul()" class="bg-purple-600 px-4 py-2 rounded hover:bg-purple-500">
-    💫 Soul anzeigen
-</button>
-<button onclick="showIdentity()" class="bg-blue-800 px-4 py-2 rounded hover:bg-blue-700">
-    🆔 Identity
-</button>
-</div>
-
-<!-- Memory Modal -->
-<div id="memory-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-gray-800 p-6 rounded-lg max-w-4xl max-h-[80vh] overflow-auto w-full">
-        <div class="flex justify-between mb-4">
-            <h3 id="modal-title" class="text-xl font-bold">Memory</h3>
-            <button onclick="closeModal()" class="text-gray-400 hover:text-white">✖</button>
+<!-- TOOLBAR -->
+<div class="bg-[var(--bg-secondary)] border-b border-[var(--border)] px-4 py-2">
+    <div class="container mx-auto flex flex-wrap items-center justify-between gap-2">
+        <div class="flex gap-2">
+            <button class="btn btn-sm" onclick="toggleTools()">
+                <i class="fas fa-tools"></i>
+                Tools
+            </button>
+            <button class="btn btn-sm" onclick="toggleShell()">
+                <i class="fas fa-terminal"></i>
+                Shell
+            </button>
         </div>
-        <pre id="modal-content" class="whitespace-pre-wrap font-mono text-sm bg-gray-900 p-4 rounded"></pre>
+        <div class="flex gap-2 text-xs text-[var(--text-muted)]">
+            <span><i class="far fa-clock"></i> <span id="current-time"></span></span>
+            <span class="mx-2">|</span>
+            <span><i class="fas fa-exchange-alt"></i> <span id="active-model-display">llama3.2</span></span>
+        </div>
     </div>
 </div>
 
-    <main class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+<!-- TOOL PANEL -->
+<div id="tool-panel" class="tool-panel hidden">
+    <button id="btn-memory" class="btn btn-sm" onclick="openModal('/api/memory', '📚 Memory', 'memory')">
+        <i class="fas fa-brain"></i> Memory
+    </button>
+    <button id="btn-skills" class="btn btn-sm" onclick="openModal('/api/memory', '🛠 Skills', 'skills')">
+        <i class="fas fa-code"></i> Skills
+    </button>
+    <button id="btn-heartbeat" class="btn btn-sm" onclick="openModal('/api/memory', '💓 Heartbeat', 'heartbeat')">
+        <i class="fas fa-heartbeat"></i> Heartbeat
+    </button>
+    <button class="btn btn-sm" onclick="showMemoryStats()">
+        <i class="fas fa-chart-bar"></i> Statistiken
+    </button>
+    <button class="btn btn-sm" onclick="archiveMemory()">
+        <i class="fas fa-archive"></i> Archivieren
+    </button>
+    <button class="btn btn-sm" onclick="resetMemory()">
+        <i class="fas fa-trash-alt"></i> Zurücksetzen
+    </button>
+    <button class="btn btn-sm" onclick="generateSoul()">
+        <i class="fas fa-magic"></i> Soul generieren
+    </button>
+    <button class="btn btn-sm" onclick="openModal('/api/soul', '🧬 Soul', 'content')">
+        <i class="fas fa-dna"></i> Soul anzeigen
+    </button>
+    <button class="btn btn-sm" onclick="openModal('/api/identity', '🆔 Identity', 'identity')">
+        <i class="fas fa-id-card"></i> Identity
+    </button>
+    <button id="btn-whisper" class="btn btn-sm" onclick="openWhisperModal()">
+        <i class="fas fa-microphone"></i> Whisper
+    </button>
+    <button id="btn-shell" class="btn btn-sm" onclick="openShellModal()">
+        <i class="fas fa-terminal"></i> Shell
+    </button>
+    <button id="btn-attach" class="btn btn-sm" onclick="document.getElementById('file-input').click()">
+        <i class="fas fa-paperclip"></i> Datei anhängen
+    </button>
+    <input type="file" id="file-input" class="hidden" multiple onchange="handleFileUpload(this.files)">
+</div>
+
+<!-- MAIN GRID -->
+<main id="main-grid" class="main-grid">
+    <!-- CHAT SECTION -->
+    <section id="chat-section" class="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] overflow-hidden">
+        <div class="p-4 border-b border-[var(--border)] flex justify-between items-center">
+            <h2 class="font-semibold flex items-center gap-2">
+                <i class="fas fa-comments text-[var(--accent)]"></i>
+                Chat
+            </h2>
+            <div id="chat-meta" class="text-xs text-[var(--text-muted)]"></div>
+        </div>
+
+<!-- Chat History -->
+<div id="chat-history" class="h-[60vh] overflow-y-auto p-4 space-y-4 relative">
+    <button id="scroll-down-btn" class="hidden fixed bottom-24 right-8 bg-[var(--accent)] text-black p-3 rounded-full shadow-lg hover:scale-110 transition-transform" onclick="scrollToBottom()" title="Nach unten scrollen">
+        <i class="fas fa-arrow-down"></i>
+    </button>
+    <div class="text-[var(--text-muted)] italic flex items-center gap-2">
+        <i class="fas fa-info-circle"></i>
+        Bereit. Verwende /help für alle Befehle (Chat, Shell, Gmail, Telegram, Auto-Exploration)
+    </div>
+</div>
+
+        <!-- Chat Input Area MIT SENDE-BUTTON -->
+        <div class="p-4 border-t border-[var(--border)]">
+            <div class="chat-input-container">
+                <textarea id="chat-input" 
+                          class="chat-input" 
+                          rows="2"
+                          placeholder="Nachricht eingeben... (Enter = senden, Shift+Enter = neue Zeile)"></textarea>
+                <button id="send-button" class="send-btn" onclick="sendChat()">
+                    <i class="fas fa-paper-plane"></i>
+                    Senden
+                </button>
+            </div>
+            <div class="flex justify-between items-center mt-2 text-xs text-[var(--text-muted)]">
+                <div class="flex items-center gap-4">
+                    <span><i class="fas fa-robot"></i> Modell: <span id="llm-info">llama3.2</span></span>
+                </div>
+                <div class="flex gap-3">
+                    <span id="token-count">0</span> Tokens
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SHELL SECTION -->
+    <section id="shell-section" class="hidden bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] overflow-hidden">
+        <div class="p-4 border-b border-[var(--border)] flex justify-between items-center">
+            <h2 class="font-semibold flex items-center gap-2">
+                <i class="fas fa-terminal text-[var(--accent)]"></i>
+                Admin Shell
+            </h2>
+            <span class="text-xs bg-[var(--bg-tertiary)] px-2 py-1 rounded">Windows</span>
+        </div>
+
+        <div class="terminal">
+            <div id="shell-output" class="terminal-output">
+                <div>Microsoft Windows [Version 10.0.22631]</div>
+                <div>GABI Shell v1.0.2</div>
+                <div>Geben Sie einen Befehl ein (ls, dir, date, echo, etc.)</div>
+                <div>&nbsp;</div>
+            </div>
+            <div class="terminal-input-line mt-2">
+                <span class="terminal-prompt">C:\GABI&gt;</span>
+                <input id="shell-line" 
+                       class="flex-1 bg-transparent border-none outline-none text-[#00ff66] font-mono" 
+                       type="text" 
+                       placeholder="Befehl eingeben...">
+            </div>
+        </div>
+
+        <div class="p-2 text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
+            <i class="fas fa-shield-alt"></i> Nur erlaubte Befehle aus der Allowlist
+        </div>
+    </section>
+</main>
+
+<!-- MODAL -->
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title" class="text-lg font-semibold text-[var(--accent)]"></h3>
+            <button class="modal-close" onclick="closeModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="modal-content" class="modal-body"></div>
+    </div>
+</div>
+
+<button id="scrollTopBtn"
+  class="hidden fixed bottom-6 right-6 z-50
+         bg-red-600 text-black rounded-full
+         w-10 h-10 shadow-lg
+         flex items-center justify-center
+         hover:bg-red-500 transition">
+  ↑
+</button>
+
+<!-- Scroll Progress Indicator -->
+<div id="scrollProgressContainer"
+     class="fixed right-2 top-24 bottom-24 w-1 bg-gray-800 rounded z-40 pointer-events-none">
+  <div id="scrollProgress"
+       class="w-full bg-red-600 rounded"
+       style="height:0%"></div>
+</div>
+
+<script>
+    // ==================== KONFIGURATION ====================
+    const API_KEY = "sysop";
+    let activeModel = "llama3.2";
+    let availableModels = [];
+    let thinkingInterval = null;
+    let thinkingStartTime = null;
+    let shellVisible = false;
+    let currentStreamingMessage = null;
+    
+    // ==================== DOM ELEMENTE ====================
+    const chatHistory = document.getElementById('chat-history');
+    const chatInput = document.getElementById('chat-input');
+    const shellSection = document.getElementById('shell-section');
+    const shellOutput = document.getElementById('shell-output');
+    const shellLine = document.getElementById('shell-line');
+    const mainGrid = document.getElementById('main-grid');
+    const typingIndicator = document.getElementById('typing-indicator');
+    const thinkingSteps = document.getElementById('thinking-steps');
+    const stepsContainer = document.getElementById('steps-container');
+    const thinkingTime = document.getElementById('thinking-time');
+    const llmInfo = document.getElementById('llm-info');
+    const activeModelDisplay = document.getElementById('active-model-display');
+    const tokenCount = document.getElementById('token-count');
+    const chatMeta = document.getElementById('chat-meta');
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalContent = document.getElementById('modal-content');
+    const modelSelector = document.getElementById('model-selector');
+    const sendButton = document.getElementById('send-button');
+    const systemInfo = {
+        os: document.getElementById('os-info'),
+        storage: document.getElementById('storage-info'),
+        whisperStatus: document.getElementById('whisper-status'),
+        telegramStatus: document.getElementById('telegram-status'),
+        llmStatus: document.getElementById('llm-status')
+    };
+
+    // Scroll Progress Indicator
+    const scrollProgress = document.getElementById('scrollProgress');
+
+    // ==================== TELEGRAM VARIABLEN ====================
+    // let telegramPollingInterval = null;
+    // let lastTelegramUpdate = 0;
+    // let displayedTelegramMessages = new Set(); // Speichert bereits angezeigte Nachrichten-IDs
+
+    // ==================== WHISPER VARIABLEN ====================
+    let mediaRecorder = null;
+    let audioChunks = [];
+
+    // ==================== HELPER FUNCTIONS ====================
+    function formatTime(ms) {
+        const seconds = Math.floor(ms / 1000);
+        return `${seconds}s`;
+    }
+
+    function escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // ==================== UI TOGGLES ====================
+    function toggleTools() {
+        document.getElementById('tool-panel').classList.toggle('hidden');
+    }
+
+    function toggleShell() {
+        shellVisible = !shellVisible;
+        shellSection.classList.toggle('hidden');
         
-        <section class="bg-gray-800 p-4 rounded-lg shadow-xl">
-            <h2 class="text-xl mb-4 border-b border-gray-700 pb-2">Ollama Chat</h2>
-            <div id="chat-history" class="chat-box p-2 space-y-4 mb-4">
-                <div class="text-gray-500 italic">Bereit für deine Anfrage...</div>
-            </div>
-            <div class="flex gap-2">
-                <input id="chat-input" type="text" class="flex-1 bg-gray-700 p-2 rounded" placeholder="Frag Llama3.2...">
-                <button onclick="sendChat()" class="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500">Senden</button>
-            </div>
-        </section>
-
-        <section class="bg-gray-800 p-4 rounded-lg shadow-xl">
-            <h2 class="text-xl mb-4 border-b border-gray-700 pb-2">Admin Shell</h2>
-            <div id="shell-output" class="terminal p-4 rounded h-64 overflow-y-auto mb-4 text-sm">
-                Microsoft Windows [Version 10.0.22631.4889]<br>Ready for command...
-            </div>
-            <div class="flex flex-col gap-2">
-                <div class="flex gap-2">
-                    <input id="shell-cmd" type="text" class="flex-1 bg-gray-700 p-2 rounded" placeholder="Befehl (z.B. dir, tasklist)">
-                    <input id="shell-args" type="text" class="w-1/3 bg-gray-700 p-2 rounded" placeholder="Args (z.B. /w)">
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="runShell(false)" class="flex-1 bg-green-700 py-2 rounded hover:bg-green-600">Run</button>
-                    <button onclick="runShell(true)" class="flex-1 bg-purple-700 py-2 rounded hover:bg-purple-600">Run & Analyze</button>
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <script>
-        const API_KEY = "sysop"; // Deine Variable aus der config.yaml
-
-        // Status-Update beim Laden
-        async function checkStatus() {
-            try {
-                const res = await fetch('/status');
-                const data = await res.json();
-                const badge = document.getElementById('status-badge');
-                if(data.gateway === "online") {
-                    badge.innerText = `Ollama: ${data.services.ollama.status}`;
-                    badge.className = "px-4 py-2 rounded-full bg-green-900 text-green-200";
-                }
-            } catch (e) { console.error("Status Check failed"); }
+        if (shellVisible) {
+            mainGrid.classList.add('shell-visible');
+            mainGrid.classList.remove('shell-hidden');
+        } else {
+            mainGrid.classList.remove('shell-visible');
+            mainGrid.classList.add('shell-hidden');
         }
+    }
 
-        // Shell ausführen
-        async function runShell(analyze = false) {
-            const cmd = document.getElementById('shell-cmd').value;
-            const args = document.getElementById('shell-args').value.split(' ').filter(a => a);
-            const endpoint = analyze ? '/shell/analyze' : '/shell';
-            const outputDiv = document.getElementById('shell-output');
+    // ==================== THINKING STEPS FUNCTIONS ====================
+    function addThinkingStepToChat(step, icon = 'fa-pencil-alt') {
+        // Prüfen ob bereits ein Thinking-Steps Container existiert
+        let thinkingContainer = document.querySelector('.thinking-steps-container:last-child');
+        
+        // Wenn nicht, oder wenn der letzte Container zu einer anderen Nachricht gehört, neuen erstellen
+        if (!thinkingContainer || thinkingContainer.hasAttribute('data-message-id')) {
+            thinkingContainer = document.createElement('div');
+            thinkingContainer.className = 'thinking-steps-container fade-in';
+            thinkingContainer.innerHTML = `
+                <div class="text-xs text-[var(--accent)] mb-1">🔄 Gedankengang:</div>
+                <div class="steps-list"></div>
+            `;
+            chatHistory.appendChild(thinkingContainer);
+        }
+        
+        const stepsList = thinkingContainer.querySelector('.steps-list');
+        const stepTime = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        stepsList.innerHTML += `
+            <div class="thinking-step">
+                <i class="fas ${icon}"></i>
+                <span>${step}</span>
+                <span class="step-time">${stepTime}</span>
+            </div>
+        `;
+        
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
 
-            if (!cmd) {
-                outputDiv.innerHTML += `<br><span class="text-red-500">> Bitte einen Befehl eingeben!</span>`;
-                return;
+    function clearThinkingStepsFromChat() {
+        // Nicht löschen - nur für neue Nachrichten einen neuen Container
+        // Diese Funktion lassen wir leer, damit die Steps erhalten bleiben
+    }
+
+    // ==================== MODAL FUNCTIONS ====================
+    let activeToolButton = null;
+
+    function closeModal() {
+        modal.classList.remove('active');
+        if (activeToolButton) {
+            activeToolButton.classList.remove('btn-active');
+            activeToolButton = null;
+        }
+    }
+
+    function setActiveButton(btnId) {
+        if (activeToolButton) {
+            activeToolButton.classList.remove('btn-active');
+        }
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.classList.add('btn-active');
+            activeToolButton = btn;
+        }
+    }
+
+    function openShellModal() {
+        modalTitle.textContent = '💻 Admin Shell';
+        modalContent.innerHTML = `
+            <div class="terminal-modal">
+                <div id="shell-modal-output" class="terminal-output" style="height: 300px; overflow-y: auto;">
+                    <div>Microsoft Windows [Version 10.0.22631]</div>
+                    <div>GABI Shell v1.0.2</div>
+                    <div>Geben Sie einen Befehl ein (ls, dir, date, echo, etc.)</div>
+                </div>
+                <div class="terminal-input-line mt-2">
+                    <span class="terminal-prompt">C:\\&gt;</span>
+                    <input id="shell-modal-line"
+                           class="flex-1 bg-transparent border-none outline-none text-[#00ff00] font-mono"
+                           type="text"
+                           placeholder="Befehl eingeben..."
+                           onkeydown="if(event.key==='Enter'){executeShellCommand(this.value);this.value='';}">
+                </div>
+            </div>
+        `;
+        modal.classList.add('active');
+        setActiveButton('btn-shell');
+    }
+
+    async function executeShellCommand(cmd) {
+        const output = document.getElementById('shell-modal-output');
+        output.innerHTML += `<div class="text-[#00ff00]">C:\\> ${cmd}</div>`;
+
+        try {
+            const response = await fetch('/shell', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({ command: cmd })
+            });
+            const result = await response.json();
+            output.innerHTML += `<div class="text-[var(--text-secondary)]">${result.output || result.error || ''}</div>`;
+        } catch (e) {
+            output.innerHTML += `<div class="text-[var(--error)]">Fehler: ${e.message}</div>`;
+        }
+        output.scrollTop = output.scrollHeight;
+    }
+
+    async function handleFileUpload(files) {
+        if (!files || files.length === 0) return;
+
+        for (const file of files) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result;
+                const fileType = file.name.split('.').pop().toLowerCase();
+
+                if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(fileType)) {
+                    chatHistory.innerHTML += `
+                        <div class="flex justify-end fade-in">
+                            <div class="message-user">
+                                <img src="${content}" style="max-width: 300px; border-radius: 8px;" alt="${file.name}">
+                                <div class="text-xs text-[var(--text-muted)] mt-1">${file.name}</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    chatHistory.innerHTML += `
+                        <div class="flex justify-end fade-in">
+                            <div class="message-user">
+                                <div class="text-xs text-[var(--accent)]">📎 ${file.name}</div>
+                                <pre class="text-xs bg-[var(--bg-tertiary)] p-2 rounded mt-1 max-h-40 overflow-auto">${content.substring(0, 1000)}${content.length > 1000 ? '...' : ''}</pre>
+                            </div>
+                        </div>
+                    `;
+                    chatInput.value += `\n[Datei: ${file.name}]\n${content.substring(0, 5000)}\n[/Datei]\n`;
+                }
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            };
+            reader.readAsDataURL(file);
+        }
+        chatInput.focus();
+    }
+
+    async function openModal(url, title, key) {
+        const buttonMap = {
+            'Memory': 'btn-memory',
+            'Skills': 'btn-skills',
+            'Heartbeat': 'btn-heartbeat'
+        };
+        const btnId = buttonMap[title.replace(/[^a-zA-Z]/g, '')];
+        if (btnId) setActiveButton(btnId);
+
+        try {
+            addThinkingStepToChat(`Lade ${title}...`, 'fa-download');
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+
+            modalTitle.textContent = title;
+
+            if (data[key]) {
+                modalContent.textContent = data[key];
+            } else {
+                modalContent.textContent = JSON.stringify(data, null, 2);
             }
 
-            outputDiv.innerHTML += `<br><span class="text-blue-400">> ${cmd} ${args.join(' ')}</span>`;
+            modal.classList.add('active');
+
+        } catch (error) {
+            console.error('Modal Error:', error);
+            modalContent.textContent = `Fehler beim Laden: ${error.message}`;
+            modal.classList.add('active');
+        }
+    }
+
+    // ==================== MODELL-AUSWAHL ====================
+    function updateModelSelector(models) {
+        modelSelector.innerHTML = '';
+
+        if (!models || models.length === 0) {
+            modelSelector.innerHTML = '<option value="">Keine Modelle verfügbar</option>';
+            return;
+        }
+
+        const sortedModels = [...models].sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: 'base' })
+        );
+
+        const savedModel = localStorage.getItem('lastUsedLLM');
+        let modelFound = false;
+
+        sortedModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+
+            if (model === savedModel) {
+                option.selected = true;
+                activeModel = model;
+                modelFound = true;
+            }
+
+            modelSelector.appendChild(option);
+        });
+
+        if (!modelFound) {
+            activeModel = sortedModels[0];
+            modelSelector.value = activeModel;
+            localStorage.setItem('lastUsedLLM', activeModel);
+        }
+    }
+
+    modelSelector.addEventListener('change', (e) => {
+        const newModel = e.target.value;
+        if (!newModel) return;
+
+        activeModel = newModel;
+        localStorage.setItem('lastUsedLLM', activeModel);
+        llmInfo.textContent = activeModel;
+        activeModelDisplay.textContent = activeModel;
+
+        addThinkingStepToChat(`Modell gewechselt zu: ${activeModel}`, 'fa-check-circle');
+    });
+
+    // ==================== SYSTEM STATUS ====================
+    async function checkStatus() {
+        try {
+            const response = await fetch('/status');
+            const data = await response.json();
             
-            try {
-                const res = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'token': API_KEY, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command: cmd, args: args })
-                });
-                const data = await res.json();
+            if (data.system) {
+                systemInfo.os.textContent = `${data.system.os || 'Unknown'} ${data.system.version || ''}`;
+                systemInfo.storage.textContent = `${data.system.storage_free_gb || '?'} GB frei`;
+            }
+            
+            if (data.services?.ollama) {
+                const ollama = data.services.ollama;
+                const isConnected = ollama.status === 'connected';
                 
-                if(analyze) {
-                    outputDiv.innerHTML += `<br><span class="text-purple-400">📊 Analyse: ${data.analysis || data.message}</span>`;
-                } else {
-                    if (data.stdout) {
-                        outputDiv.innerHTML += `<br>${data.stdout}`;
-                    } else if (data.stderr) {
-                        outputDiv.innerHTML += `<br><span class="text-red-400">${data.stderr}</span>`;
-                    } else {
-                        outputDiv.innerHTML += `<br><span class="text-yellow-400">${data.message || 'Keine Ausgabe'}</span>`;
+                if (ollama.available_models && ollama.available_models.length > 0) {
+                    availableModels = ollama.available_models;
+                    updateModelSelector(availableModels);
+                    
+                    if (!activeModel || activeModel === 'llama3.2') {
+                        activeModel = availableModels[0];
+                        llmInfo.textContent = activeModel;
+                        activeModelDisplay.textContent = activeModel;
                     }
                 }
-                outputDiv.scrollTop = outputDiv.scrollHeight;
-            } catch (e) {
-                outputDiv.innerHTML += `<br><span class="text-red-500">❌ Fehler: ${e}</span>`;
+                
+                systemInfo.llmStatus.innerHTML = isConnected ?
+                    '<span class="status-badge status-online">Verbunden</span>' :
+                    '<span class="status-badge status-offline">Getrennt</span>';
             }
+
+            if (data.services?.whisper) {
+                const whisper = data.services.whisper;
+                const isWhisperConnected = whisper.status === 'connected';
+                const whisperModels = whisper.available_models?.length || 0;
+                systemInfo.whisperStatus.innerHTML = isWhisperConnected ?
+                    `<span class="status-badge status-online">Verbunden (${whisperModels} Modelle)</span>` :
+                    '<span class="status-badge status-offline">Nicht verfügbar</span>';
+            }
+
+            if (data.services?.telegram) {
+                const telegram = data.services.telegram;
+                systemInfo.telegramStatus.innerHTML = telegram.enabled ?
+                    '<span class="status-badge status-online">Aktiv</span>' :
+                    '<span class="status-badge status-offline">Deaktiviert</span>';
+            }
+
+        } catch (error) {
+            console.error('Status Check Error:', error);
+            systemInfo.llmStatus.innerHTML = '<span class="status-badge status-offline">Fehler</span>';
+            modelSelector.innerHTML = '<option value="">Verbindungsfehler</option>';
         }
+    }
 
-        // Chat mit Ollama (Jetzt funktionsfähig!)
-        async function sendChat() {
-            const input = document.getElementById('chat-input');
-            const message = input.value.trim();
-            if (!message) return;
+    // ==================== CHAT FUNCTIONS ====================
+    async function sendChat() {
+        const message = chatInput.value.trim();
+        if (!message) return;
 
-            const chatHistory = document.getElementById('chat-history');
-            
-            // Platzhalter entfernen wenn erste Nachricht
-            if (chatHistory.children.length === 1 && chatHistory.children[0].classList.contains('text-gray-500')) {
-                chatHistory.innerHTML = '';
+        // User Message
+        chatHistory.innerHTML += `
+            <div class="flex justify-end fade-in">
+                <div class="message-user">
+                    ${escapeHtml(message)}
+                </div>
+            </div>
+        `;
+        chatInput.value = '';
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+        // Thinking Steps für diese Nachricht
+        addThinkingStepToChat(`Nachricht empfangen (Modell: ${activeModel})`, 'fa-inbox');
+
+        // Typing Indicator
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'typing-indicator fade-in';
+        typingDiv.id = 'typing-indicator';
+        typingDiv.innerHTML = `
+            <div class="loader-dots">
+                <div></div>
+                <div></div>
+                <div></div>
+            </div>
+            <span>GABI denkt nach...</span>
+            <span id="thinking-time" class="text-xs text-[var(--text-muted)]">0s</span>
+        `;
+        chatHistory.appendChild(typingDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+        thinkingStartTime = Date.now();
+
+        if (thinkingInterval) clearInterval(thinkingInterval);
+        thinkingInterval = setInterval(() => {
+            const timeSpan = document.getElementById('thinking-time');
+            if (timeSpan) {
+                timeSpan.textContent = formatTime(Date.now() - thinkingStartTime);
             }
-            
-            // User-Nachricht anzeigen
-            chatHistory.innerHTML += `
-                <div class="flex justify-end">
-                    <div class="bg-blue-600 p-3 rounded-lg max-w-[80%] shadow">${message}</div>
+        }, 100);
+
+        const startTime = Date.now();
+
+        try {
+            addThinkingStepToChat('Verbinde mit Ollama…', 'fa-plug');
+
+            const response = await fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'token': API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    model: activeModel
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            addThinkingStepToChat('Antwort empfangen', 'fa-brain');
+
+            const data = await response.json();
+
+            if (data.status !== 'success') {
+                throw new Error(data.message || 'Unbekannter LLM-Fehler');
+            }
+
+            const replyText = data.reply || '';
+            const timestamp = data.timestamp
+                ? new Date(data.timestamp).toLocaleTimeString('de-DE')
+                : new Date().toLocaleTimeString('de-DE');
+
+            const tokenEstimate = replyText.split(/\s+/).length;
+
+            // Typing Indicator entfernen
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) typingIndicator.remove();
+
+            // Assistant Message
+            const assistantDiv = document.createElement('div');
+            assistantDiv.className = 'flex justify-start fade-in';
+            assistantDiv.innerHTML = `
+                <div class="message-assistant prose prose-invert">
+                    <div class="text-xs text-[var(--text-muted)] mb-2">
+                        🤖 ${activeModel} · 🕒 ${timestamp} · 🧮 ~${tokenEstimate} Tokens
+                    </div>
+                    ${marked.parse(replyText)}
                 </div>
             `;
-            
-            input.value = '';
+
+            chatHistory.appendChild(assistantDiv);
             chatHistory.scrollTop = chatHistory.scrollHeight;
 
-            try {
-                const res = await fetch('/chat', {
-                    method: 'POST',
-                    headers: { 
-                        'token': API_KEY, 
-                        'Content-Type': 'application/json' 
-                    },
-                    body: JSON.stringify({ 
-                        message: message,
-                        model: 'llama3.2'
-                    })
-                });
-                
-                const data = await res.json();
-                
-                if (data.status === 'success') {
-                    // Bot-Antwort anzeigen
-                    chatHistory.innerHTML += `
-                        <div class="flex justify-start">
-                            <div class="bg-gray-700 p-3 rounded-lg max-w-[80%] shadow border-l-4 border-blue-500">${data.reply}</div>
-                        </div>
-                    `;
-                } else {
-                    chatHistory.innerHTML += `
-                        <div class="flex justify-start">
-                            <div class="bg-red-700 p-3 rounded-lg max-w-[80%] shadow">❌ Fehler: ${data.message}</div>
-                        </div>
-                    `;
-                }
-            } catch (e) {
-                chatHistory.innerHTML += `
-                    <div class="flex justify-start">
-                        <div class="bg-red-700 p-3 rounded-lg max-w-[80%] shadow">❌ Verbindungsfehler: ${e}</div>
+            addThinkingStepToChat('Antwort gerendert', 'fa-check-circle');
+
+            const duration = Date.now() - startTime;
+            chatMeta.innerHTML = `
+                <i class="far fa-clock"></i> ${formatTime(duration)} |
+                <i class="fas fa-file-alt"></i> ${tokenEstimate} Tokens |
+                <i class="fas fa-brain"></i> ${activeModel}
+            `;
+
+        } catch (error) {
+            console.error('Chat Error:', error);
+
+            // Typing Indicator entfernen
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) typingIndicator.remove();
+
+            chatHistory.innerHTML += `
+                <div class="flex justify-start fade-in">
+                    <div class="message-assistant text-[var(--error)]">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Fehler: ${escapeHtml(error.message)}
                     </div>
-                `;
+                </div>
+            `;
+
+            addThinkingStepToChat(`Fehler: ${error.message}`, 'fa-exclamation-triangle');
+
+        } finally {
+            if (thinkingInterval) {
+                clearInterval(thinkingInterval);
+                thinkingInterval = null;
             }
-            
+
             chatHistory.scrollTop = chatHistory.scrollHeight;
         }
+    }
 
-        // Enter-Taste zum Senden
-        document.addEventListener('DOMContentLoaded', function() {
-            const chatInput = document.getElementById('chat-input');
-            if (chatInput) {
-                chatInput.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        sendChat();
-                    }
-                });
+    // ==================== SHELL FUNCTIONS ====================
+    async function executeShellCommand(command) {
+        const parts = command.split(' ');
+        const cmd = parts[0];
+        const args = parts.slice(1);
+        
+        shellOutput.innerHTML += `<div>> ${escapeHtml(command)}</div>`;
+        
+        try {
+            addThinkingStepToChat(`Führe Shell-Befehl aus: ${cmd}`, 'fa-terminal');
+            
+            const response = await fetch('/shell', {
+                method: 'POST',
+                headers: {
+                    'token': API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ command: cmd, args: args })
+            });
+            
+            const data = await response.json();
+            
+            if (data.stdout) {
+                shellOutput.innerHTML += `<div>${escapeHtml(data.stdout)}</div>`;
+            } else if (data.stderr) {
+                shellOutput.innerHTML += `<div style="color: #ff6b6b;">${escapeHtml(data.stderr)}</div>`;
+            } else if (data.message) {
+                shellOutput.innerHTML += `<div style="color: #ffaa00;">${escapeHtml(data.message)}</div>`;
             }
-        });
-
-        setInterval(checkStatus, 5000);
-        checkStatus();
-
-// Memory-Funktionen
-async function showMemory() {
-    try {
-        const res = await fetch('/api/memory', {
-            headers: { 'Authorization': `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
-        
-        document.getElementById('modal-title').textContent = '📚 GABI Memory';
-        document.getElementById('modal-content').textContent = data.memory;
-        document.getElementById('memory-modal').classList.remove('hidden');
-        document.getElementById('memory-modal').classList.add('flex');
-    } catch (e) {
-        alert('Fehler beim Laden des Memory: ' + e);
-    }
-}
-
-async function showSkills() {
-    try {
-        const res = await fetch('/api/memory', {
-            headers: { 'Authorization': `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
-        
-        document.getElementById('modal-title').textContent = '🛠️ GABI Skills';
-        document.getElementById('modal-content').textContent = data.skills;
-        document.getElementById('memory-modal').classList.remove('hidden');
-        document.getElementById('memory-modal').classList.add('flex');
-    } catch (e) {
-        alert('Fehler beim Laden der Skills: ' + e);
-    }
-}
-
-async function showHeartbeat() {
-    try {
-        const res = await fetch('/api/memory', {
-            headers: { 'Authorization': `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
-        
-        document.getElementById('modal-title').textContent = '💓 GABI Heartbeat';
-        document.getElementById('modal-content').textContent = data.heartbeat;
-        document.getElementById('memory-modal').classList.remove('hidden');
-        document.getElementById('memory-modal').classList.add('flex');
-    } catch (e) {
-        alert('Fehler beim Laden des Heartbeat: ' + e);
-    }
-}
-
-function closeModal() {
-    document.getElementById('memory-modal').classList.add('hidden');
-    document.getElementById('memory-modal').classList.remove('flex');
-}
-
-// Im Status-Check auch die Konversationsanzahl anzeigen
-async function checkStatus() {
-    try {
-        const res = await fetch('/status');
-        const data = await res.json();
-        const badge = document.getElementById('status-badge');
-        
-        // Memory-Info abrufen
-        const memRes = await fetch('/api/memory', {
-            headers: { 'Authorization': `Bearer ${API_KEY}` }
-        });
-        const memData = await memRes.json();
-        
-        if(data.gateway === "online") {
-            badge.innerText = `Ollama: ${data.services.ollama.status} | Gespräche: ${memData.conversation_count}`;
-            badge.className = "px-4 py-2 rounded-full bg-green-900 text-green-200";
+            
+        } catch (error) {
+            shellOutput.innerHTML += `<div style="color: #ff6b6b;">Fehler: ${error.message}</div>`;
         }
-    } catch (e) { console.error("Status Check failed"); }
-}
-
-
-// Memory archivieren - KORRIGIERT mit POST Methode
-async function archiveMemory() {
-    if (!confirm('Memory archivieren? Die aktuelle Konversation wird in eine Archivdatei verschoben.')) {
-        return;
-    }
-    
-    try {
-        const res = await fetch('/api/memory/archive', {
-            method: 'POST',  // <-- WICHTIG: POST statt GET
-            headers: { 
-                'Authorization': `Bearer ${API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        const data = await res.json();
-        alert(data.message);
-    } catch (e) {
-        alert('Fehler beim Archivieren: ' + e);
-    }
-}
-
-// Memory zurücksetzen - KORRIGIERT mit POST Methode
-async function resetMemory() {
-    if (!confirm('⚠️ WIRKLICH das gesamte Memory zurücksetzen? Ein Backup wird erstellt.')) {
-        return;
-    }
-    
-    if (!confirm('Letzte Warnung: Alle Konversationen werden gelöscht! Fortfahren?')) {
-        return;
-    }
-    
-    try {
-        const res = await fetch('/api/memory/reset', {
-            method: 'POST',  // <-- WICHTIG: POST statt GET
-            headers: { 
-                'Authorization': `Bearer ${API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        const data = await res.json();
-        alert(`✅ ${data.message}\nBackup: ${data.backup_file}`);
-    } catch (e) {
-        alert('Fehler beim Zurücksetzen: ' + e);
-    }
-}
-
-
-// 🔥 NEU: Memory Statistiken anzeigen
-async function showMemoryStats() {
-    try {
-        const res = await fetch('/api/memory/stats', {
-            headers: { 'Authorization': `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
         
-        if (data.status === 'success') {
-            const stats = data.stats;
+        shellOutput.innerHTML += `<div>&nbsp;</div>`;
+        shellOutput.scrollTop = shellOutput.scrollHeight;
+    }
+
+
+    // ==================== TELEGRAM FUNCTIONS ====================
+    let telegramPollingInterval = null;
+    let lastTelegramUpdate = 0;
+    let displayedTelegramIds = new Set(); // Speichert bereits angezeigte Nachrichten-IDs
+    let pollingActive = false; // Verhindert gleichzeitige Polling-Aufrufe
+
+    // Hilfsfunktion: Erstellt eine eindeutige ID aus einer Nachricht
+    function createMessageId(msg) {
+        // Verwende die vom Server gelieferte ID oder erstelle eine eigene
+        return msg.id || `${msg.user_id}-${msg.date}-${msg.text || ''}`;
+    }
+
+    async function pollTelegramMessages() {
+        // Verhindere gleichzeitige Polling-Aufrufe
+        if (pollingActive) {
+            console.log('📨 Polling läuft bereits, überspringe...');
+            return;
+        }
+        
+        pollingActive = true;
+        
+        try {
+            const response = await fetch('/api/telegram/messages?since=' + lastTelegramUpdate, {
+                headers: { 'Authorization': 'Bearer ' + API_KEY }
+            });
+            const data = await response.json();
             
-            // Formatiere die Archivliste
-            let archiveList = 'Keine Archive';
-            if (stats.archive_files && stats.archive_files.length > 0) {
-                archiveList = stats.archive_files.join('\n    ');
+            if (data.messages && data.messages.length > 0) {
+                console.log(`📨 ${data.messages.length} Telegram-Nachrichten erhalten`);
+                
+                // Nur Nachrichten anzeigen, die noch NICHT im Set sind
+                const newMessages = [];
+                
+                for (const msg of data.messages) {
+                    const msgId = createMessageId(msg);
+                    
+                    if (!displayedTelegramIds.has(msgId)) {
+                        newMessages.push(msg);
+                        displayedTelegramIds.add(msgId); // Als gesehen markieren
+                    }
+                }
+                
+                // Nur anzeigen, wenn es wirklich neue gibt
+                if (newMessages.length > 0) {
+                    console.log(`📨 ${newMessages.length} NEUE Telegram-Nachrichten`);
+                    displayTelegramMessages(newMessages);
+                    showNewMessageIndicator(newMessages.length);
+                    
+                    // lastTelegramUpdate nur aktualisieren, wenn wirklich neue Nachrichten da sind
+                    // Verwende den aktuellen Zeitstempel
+                    lastTelegramUpdate = Date.now();
+                } else {
+                    console.log('📨 Keine neuen Nachrichten');
+                }
             }
+        } catch (error) {
+            console.error('Telegram poll error:', error);
+        } finally {
+            pollingActive = false;
+        }
+    }
+
+    // Telegram-Nachrichten im Chat anzeigen
+    function displayTelegramMessages(messages) {
+        for (const msg of messages) {
+            const msgId = createMessageId(msg);
             
-            alert(`📊 Memory-Statistiken
+            // Prüfen ob schon im DOM (zusätzliche Sicherheit)
+            if (document.querySelector(`[data-telegram-id="${msgId}"]`)) continue;
             
+            const time = msg.date ? new Date(msg.date).toLocaleTimeString('de-DE') : new Date().toLocaleTimeString('de-DE');
+            const sender = msg.from || msg.sender || (msg.role === 'user' ? 'Telegram User' : 'GABI Bot');
+            const text = msg.text || msg.message || '';
+            const role = msg.role || 'unknown';
+            
+            // Nur anzeigen, wenn es sinnvollen Inhalt gibt
+            if (!text || text.length === 0) continue;
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'fade-in';
+            msgDiv.setAttribute('data-telegram-id', msgId);
+            
+            // Unterschiedliche Icons für User und Bot
+            const icon = role === 'user' ? 'fa-user' : 'fa-robot';
+            const borderColor = role === 'user' ? '#0088cc' : '#00a884';
+            
+            msgDiv.innerHTML = `
+                <div class="message-assistant" style="border-left-color: ${borderColor};">
+                    <div class="text-xs text-[var(--text-muted)] mb-2">
+                        <i class="fab fa-telegram text-[#0088cc]"></i> 
+                        <i class="fas ${icon}"></i> ${sender} · 🕒 ${time}
+                    </div>
+                    <div class="prose prose-invert">
+                        ${marked.parse(text)}
+                    </div>
+                </div>
+            `;
+            chatHistory.appendChild(msgDiv);
+        }
+        
+        if (messages.length > 0) {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+    }
+
+    function showNewMessageIndicator(count) {
+        // Alten Indicator entfernen
+        const oldIndicator = document.getElementById('new-message-indicator');
+        if (oldIndicator) oldIndicator.remove();
+        
+        const div = document.createElement('div');
+        div.id = 'new-message-indicator';
+        div.className = 'fixed top-20 right-8 bg-[#0088cc] text-white px-4 py-2 rounded-lg shadow-lg cursor-pointer animate-pulse z-50';
+        div.onclick = function() {
+            // Zu den neuesten Telegram-Nachrichten scrollen
+            const telegramMessages = document.querySelectorAll('[data-telegram-id]');
+            if (telegramMessages.length > 0) {
+                const lastMessages = Array.from(telegramMessages).slice(-count);
+                if (lastMessages.length > 0) {
+                    lastMessages[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+            div.remove();
+        };
+        div.innerHTML = '<i class="fab fa-telegram"></i> ' + count + ' neue Telegram-Nachricht(en)';
+        document.body.appendChild(div);
+    }
+
+    async function initTelegramPolling() {
+        try {
+            // Prüfen ob Telegram überhaupt enabled ist
+            const response = await fetch('/status');
+            const data = await response.json();
+            
+            if (data.services && data.services.telegram && data.services.telegram.enabled) {
+                console.log('📨 Telegram polling gestartet (alle 5 Sekunden)');
+                
+                // Set zurücksetzen
+                displayedTelegramIds.clear();
+                lastTelegramUpdate = Date.now();
+                pollingActive = false;
+                
+                // Bestehende Telegram-Nachrichten im Chat erkennen
+                setTimeout(() => {
+                    document.querySelectorAll('[data-telegram-id]').forEach(el => {
+                        const id = el.getAttribute('data-telegram-id');
+                        if (id) displayedTelegramIds.add(id);
+                    });
+                    console.log(`📨 ${displayedTelegramIds.size} bereits angezeigte Telegram-Nachrichten erkannt`);
+                }, 1000);
+                
+                // Vorhandenes Interval löschen
+                if (telegramPollingInterval) {
+                    clearInterval(telegramPollingInterval);
+                }
+                
+                // Neues Interval starten
+                telegramPollingInterval = setInterval(pollTelegramMessages, 5000);
+                
+                // Gleich beim Start einmal abfragen
+                setTimeout(pollTelegramMessages, 1000);
+            } else {
+                console.log('📨 Telegram ist nicht enabled in der Config');
+            }
+        } catch (e) {
+            console.error('Telegram init error:', e);
+        }
+    }
+
+    // Manueller Check für Tests
+    window.checkTelegramNow = async function() {
+        console.log('📨 Manueller Telegram-Check...');
+        displayedTelegramIds.clear(); // Für Test-Zwecke
+        await pollTelegramMessages();
+        console.log('📨 Check abgeschlossen');
+    }
+
+    // Set regelmäßig leeren (alle 30 Minuten)
+    setInterval(() => {
+        const size = displayedTelegramIds.size;
+        if (size > 0) {
+            console.log(`📨 Telegram-ID-Set enthält ${size} Einträge`);
+        }
+        if (size > 1000) {
+            displayedTelegramIds.clear();
+            console.log('📨 Telegram-ID-Set geleert (zu groß)');
+        }
+    }, 1800000); // 30 Minuten
+
+
+    // ==================== WHISPER FUNCTIONS ====================
+    function openWhisperModal() {
+        modalTitle.textContent = 'Whisper Spracherkennung';
+        modalContent.innerHTML = '<div class="p-4"><p class="mb-4 text-gray-400">Audio aufnehmen oder Datei hochladen:</p><div class="flex gap-3 mb-4"><button onclick="startRecording()" class="btn bg-red-600 text-white"><i class="fas fa-microphone"></i> Aufnehmen</button><button onclick="document.getElementById(\'whisper-file\').click()" class="btn"><i class="fas fa-upload"></i> Datei</button></div><input type="file" id="whisper-file" class="hidden" accept="audio/*" onchange="transcribeAudio(this.files)"><div id="whisper-result" class="mt-4 p-3 bg-gray-800 rounded hidden"></div></div>';
+        modal.classList.add('active');
+        setActiveButton('btn-whisper');
+    }
+
+    async function startRecording() {
+        try {
+            var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = function(e) { audioChunks.push(e.data); };
+            mediaRecorder.onstop = async function() {
+                var audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                await transcribeAudio([audioBlob]);
+            };
+            mediaRecorder.start();
+        } catch (err) {
+            alert('Mikrofon nicht verfügbar: ' + err.message);
+        }
+    }
+
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+            mediaRecorder.stream.getTracks().forEach(function(t) { t.stop(); });
+        }
+    }
+
+    async function transcribeAudio(files) {
+        if (!files || files.length === 0) return;
+        var file = files[0];
+        var formData = new FormData();
+        formData.append('file', file);
+        try {
+            var response = await fetch('/api/whisper/transcribe/sync?language=de', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + API_KEY },
+                body: formData
+            });
+            var result = await response.json();
+            var resultDiv = document.getElementById('whisper-result');
+            resultDiv.classList.remove('hidden');
+            resultDiv.innerHTML = '<strong>Ergebnis:</strong><p class="mt-2">' + (result.result && result.result.text ? result.result.text : (result.error || 'Kein Ergebnis')) + '</p>';
+        } catch (err) {
+            alert('Transkription fehlgeschlagen: ' + err.message);
+        }
+    }
+
+    // ==================== MEMORY FUNCTIONS ====================
+    async function showMemoryStats() {
+        try {
+            const response = await fetch('/api/memory/stats', {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+            
+            if (data.stats) {
+                const stats = data.stats;
+                const statsText = `
+Memory Statistiken:
+------------------
 📁 Datei: ${stats.memory_file}
-📏 Größe: ${stats.file_size_kb} KB
+📊 Größe: ${stats.file_size_kb} KB
 📝 Zeilen: ${stats.lines}
 💬 Konversationen: ${stats.conversations}
-🔄 Aktuelle Session: ${stats.history_count} Nachrichten
-📦 Archive: ${stats.archives_available}
-    
-Letzte Archive:
-    ${archiveList}`);
-        } else {
-            alert('Fehler beim Laden der Statistiken');
+📚 Verlauf: ${stats.history_count} Nachrichten
+🗄 Archive: ${stats.archives_available}
+                `;
+                
+                modalTitle.textContent = '📊 Memory Statistiken';
+                modalContent.textContent = statsText;
+                modal.classList.add('active');
+            }
+        } catch (error) {
+            console.error('Stats Error:', error);
         }
-    } catch (e) {
-        alert('Fehler beim Laden der Statistiken: ' + e);
     }
-}
 
-
-async function generateSoul() {
-    try {
-        const res = await fetch('/api/memory/generate-soul', {
-            method: 'POST',
-            headers: { 
-                'Authorization': `Bearer ${API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        const data = await res.json();
-        
-        if (data.status === 'success') {
-            let topicsMsg = '';
-            if (data.stats.top_topics.length > 0) {
-                topicsMsg = '\n\nTop Themen:\n' + data.stats.top_topics.map(t => `  - ${t[0]} (${t[1]}x)`).join('\n');
-            }
+    async function archiveMemory() {
+        try {
+            addThinkingStepToChat('Archiviere Memory...', 'fa-archive');
             
-            alert(`✅ Soul generiert!${topicsMsg}\n\n📊 ${data.stats.user_messages} Nachrichten, ${data.stats.unique_words} verschiedene Wörter`);
-        } else {
-            alert('Fehler: ' + data.message);
+            const response = await fetch('/api/memory/archive', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+            
+            modalTitle.textContent = '📦 Archivierung';
+            modalContent.textContent = data.message || JSON.stringify(data, null, 2);
+            modal.classList.add('active');
+            
+        } catch (error) {
+            console.error('Archive Error:', error);
         }
-    } catch (e) {
-        alert('Fehler beim Generieren: ' + e);
     }
-}
 
-async function showSoul() {
-    try {
-        const res = await fetch('/api/soul', {
-            headers: { 'Authorization': `Bearer ${API_KEY}` }
-        });
-        const data = await res.json();
+    async function resetMemory() {
+        if (!confirm('⚠️ Memory wirklich zurücksetzen? Ein Backup wird erstellt.')) return;
         
-        if (data.status === 'success') {
-            document.getElementById('modal-title').textContent = '🧬 GABI Soul';
-            document.getElementById('modal-content').textContent = data.content;
-            document.getElementById('memory-modal').classList.remove('hidden');
-            document.getElementById('memory-modal').classList.add('flex');
-        } else {
-            alert('SOUL.md nicht gefunden: ' + data.message);
+        try {
+            addThinkingStepToChat('Setze Memory zurück...', 'fa-trash-alt');
+            
+            const response = await fetch('/api/memory/reset', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+            
+            modalTitle.textContent = '⚠️ Memory zurückgesetzt';
+            modalContent.textContent = `Backup: ${data.backup_file}\n\n${JSON.stringify(data, null, 2)}`;
+            modal.classList.add('active');
+            
+        } catch (error) {
+            console.error('Reset Error:', error);
         }
-    } catch (e) {
-        alert('Fehler beim Laden: ' + e);
     }
-}
 
-function showSoulModal(content) {
-    document.getElementById('modal-title').textContent = '🧬 GABI Soul';
-    document.getElementById('modal-content').textContent = content;
-    document.getElementById('memory-modal').classList.remove('hidden');
-    document.getElementById('memory-modal').classList.add('flex');
-}
+    async function generateSoul() {
+        try {
+            addThinkingStepToChat('Generiere Soul aus Memory...', 'fa-magic');
+            
+            const response = await fetch('/api/memory/generate-soul', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+            
+            modalTitle.textContent = '🧬 Soul Generierung';
+            modalContent.textContent = data.message || JSON.stringify(data, null, 2);
+            modal.classList.add('active');
+            
+        } catch (error) {
+            console.error('Generate Soul Error:', error);
+        }
+    }
 
+    // ==================== EVENT LISTENERS ====================
+    
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendChat();
+        }
+    });
 
-async function showIdentity() {
-    try {
-        const res = await fetch('/api/identity', {
-            headers: { 'Authorization': `Bearer ${API_KEY}` }
+    shellLine.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const command = e.target.value.trim();
+            if (command) {
+                executeShellCommand(command);
+                e.target.value = '';
+            }
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
+
+    chatHistory.addEventListener('scroll', function() {
+        var btn = document.getElementById('scroll-down-btn');
+        if (!btn) return;
+        var isAtBottom = chatHistory.scrollTop + chatHistory.clientHeight >= chatHistory.scrollHeight - 50;
+        if (!isAtBottom) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    });
+
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('current-time').textContent = 
+            now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+
+    const scrollTopBtn = document.getElementById('scrollTopBtn');
+
+    chatHistory.addEventListener('scroll', () => {
+        const { scrollTop, scrollHeight, clientHeight } = chatHistory;
+
+        if (scrollTop > 300) {
+            scrollTopBtn.classList.remove('hidden');
+        } else {
+            scrollTopBtn.classList.add('hidden');
+        }
+    });
+
+    scrollTopBtn.addEventListener('click', () => {
+        chatHistory.scrollTo({
+            top: 0,
+            behavior: 'smooth'
         });
-        const data = await res.json();
-        
-        if (data.status === 'success') {
-            document.getElementById('modal-title').textContent = '🆔 GABI Identity';
-            document.getElementById('modal-content').textContent = data.identity;
-            document.getElementById('memory-modal').classList.remove('hidden');
-            document.getElementById('memory-modal').classList.add('flex');
-        } else {
-            alert('Fehler beim Laden der Identity');
-        }
-    } catch (e) {
-        alert('Fehler: ' + e);
-    }
-}
+    });
 
+    function updateScrollIndicators() {
+        const scrollTop = chatHistory.scrollTop;
+        const scrollHeight = chatHistory.scrollHeight - chatHistory.clientHeight;
+        
+        const scrollProgressContainer = document.getElementById('scrollProgressContainer');
+        
+        if (scrollHeight > 200) {
+            scrollProgressContainer.classList.remove('hidden');
+            const progress = (scrollTop / scrollHeight) * 100;
+            scrollProgress.style.height = progress + '%';
+        } else {
+            scrollProgressContainer.classList.add('hidden');
+        }
+    }
+
+    chatHistory.addEventListener('scroll', updateScrollIndicators);
+    updateScrollIndicators();
+
+    // ==================== INITIALISIERUNG ====================
+    
+    checkStatus();
+    setInterval(checkStatus, 5000);
+    
+    shellSection.classList.add('hidden');
+    mainGrid.classList.add('shell-hidden');
+    
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            if (chatInput) {
+                chatInput.focus();
+                chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            initTelegramPolling();
+        }, 500);
+    });
+    
+    console.log('GABI Gateway Dashboard v2.0 mit Modell-Auswahl gestartet');
 </script>
+
 </body>
 </html>

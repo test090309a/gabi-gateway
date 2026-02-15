@@ -35,12 +35,23 @@ class GmailClient:
         creds = None
         token_path = Path(self.token_path)
 
-        # Load existing token
+        # Load existing token (try both pickle and JSON formats)
         if token_path.exists():
-            import pickle
-
-            with open(token_path, "rb") as token:
-                creds = pickle.load(token)
+            try:
+                # Try pickle first (legacy format)
+                import pickle
+                with open(token_path, "rb") as token:
+                    creds = pickle.load(token)
+            except Exception:
+                # Try JSON format (current google-auth-oauthlib format)
+                import pickle
+                try:
+                    import google.oauth2.credentials
+                    with open(token_path, "r") as token:
+                        token_data = json.load(token)
+                        creds = google.oauth2.credentials.Credentials.from_authorized_user_info(token_data, SCOPES)
+                except Exception as e:
+                    logger.warning(f"Could not load token: {e}")
 
         # If no valid credentials, run OAuth flow
         if not creds or not creds.valid:
@@ -57,11 +68,25 @@ class GmailClient:
                 flow = InstalledAppFlow.from_client_secrets_file(str(creds_path), SCOPES)
                 creds = flow.run_local_server(port=0)
 
-            # Save token
+            # Save token in JSON format
             import pickle
-
-            with open(token_path, "wb") as token:
-                pickle.dump(creds, token)
+            try:
+                # Try to save as JSON (google-auth-oauthlib standard)
+                import google.oauth2.credentials
+                token_data = {
+                    "token": creds.token,
+                    "refresh_token": creds.refresh_token,
+                    "token_uri": creds.token_uri,
+                    "client_id": creds.client_id,
+                    "client_secret": creds.client_secret,
+                    "scopes": creds.scopes,
+                }
+                with open(token_path, "w") as token:
+                    json.dump(token_data, token)
+            except Exception:
+                # Fallback to pickle if JSON fails
+                with open(token_path, "wb") as token:
+                    pickle.dump(creds, token)
 
         # Build Gmail service
         self.service = build("gmail", "v1", credentials=creds)

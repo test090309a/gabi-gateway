@@ -1,36 +1,15 @@
 {
-  "generated": "2026-02-15T02:24:32.338683",
+  "generated": "2026-02-15T11:28:49.884494",
   "stats": {
-    "user_messages": 14,
-    "bot_messages": 14,
-    "unique_words": 15,
-    "top_topics": [
-      [
-        "hey",
-        4
-      ],
-      [
-        "führe",
-        4
-      ],
-      [
-        "wer",
-        2
-      ],
-      [
-        "bist",
-        2
-      ],
-      [
-        "was",
-        2
-      ]
-    ],
+    "user_messages": 0,
+    "bot_messages": 0,
+    "unique_words": 0,
+    "top_topics": [],
     "sentiment": "😐 Neutral",
-    "chat_time": "Nachtmensch ⭐",
-    "avg_user_length": 16,
-    "avg_bot_length": 110,
-    "earliest_date": "2026-02-15 01:27",
-    "latest_date": "2026-02-15 02:22"
+    "chat_time": "Unbekannt",
+    "avg_user_length": 0,
+    "avg_bot_length": 0,
+    "earliest_date": "Unbekannt",
+    "latest_date": "Unbekannt"
   }
 }

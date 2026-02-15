@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c:*)",
+      "Bash(curl:*)",
+      "Bash(for port in:*)",
+      "Bash(do curl:*)",
+      "Bash(echo:*)",
+      "Bash(done:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)"
+    ]
+  }
+}

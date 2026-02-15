@@ -1,6 +1,7 @@
 """Telegram bot integration."""
 import logging
 import asyncio
+from datetime import datetime
 
 from telegram import Update
 from telegram.ext import Application, MessageHandler, CommandHandler, filters, ContextTypes
@@ -35,26 +36,42 @@ class TelegramBot:
         self._user_sessions.pop(user_id, None)
         await update.message.reply_text("Gesprächsverlauf gelöscht.")
 
+    # In integrations/telegram_bot.py - in der handle_message Methode:
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         user_message = update.message.text
+        timestamp = datetime.now().isoformat()  # <-- Timestamp hinzufügen
+        
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
         if user_id not in self._user_sessions:
             self._user_sessions[user_id] = []
 
         messages = self._user_sessions[user_id]
-        messages.append({"role": "user", "content": user_message})
+        
+        # User-Nachricht mit Timestamp speichern
+        messages.append({
+            "role": "user", 
+            "content": user_message,
+            "timestamp": timestamp  # <-- Hier
+        })
 
         try:
             response = ollama_client.chat(messages=messages)
             assistant_message = response.get("message", {}).get("content", "")
-            messages.append({"role": "assistant", "content": assistant_message})
+            
+            # Bot-Antwort mit Timestamp speichern
+            messages.append({
+                "role": "assistant", 
+                "content": assistant_message,
+                "timestamp": datetime.now().isoformat()  # <-- Und hier
+            })
+            
             await update.message.reply_text(assistant_message)
         except Exception as e:
             logger.error(f"Ollama error: {e}")
             await update.message.reply_text(f"Fehler: {e}")
-            messages.pop()
+            messages.pop()  # User-Nachricht wieder entfernen bei Fehler
 
 
 telegram_bot = None

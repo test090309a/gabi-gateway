@@ -1,6 +1,6 @@
 # GABI Heartbeat & Monitoring
 
-## Aktueller Status (15.02.2026 01:33)
+## Aktueller Status (15.02.2026 02:01)
 | Dienst | Status | Details |
 |--------|--------|---------|
 | FastAPI | 🟢 Online | Port 8000 |
@@ -10,10 +10,10 @@
 | Shell | 🟢 Bereit | 45 Befehle |
 
 ## System-Ressourcen
-- **Speicher frei**: 221.36 GB
+- **Speicher frei**: 221.35 GB
 - **Betriebssystem**: Windows 11
-- **Letzter Heartbeat**: 01:33:18
+- **Letzter Heartbeat**: 02:01:43
 
 ## Letzte Aktivitäten
-- 👤 User: sqlite3 wie erstelle ich eine db auf der kommandoz...
-- 🤖 GABI: Hallo! Es ist schön, dir bei dieser Frage zu helfe...
+- 👤 User: führe dir aus
+- 🤖 GABI: **GABI**: Ich kann den Befehl nicht direkt ausführ...

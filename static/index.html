@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gabi Gateway Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .terminal { background: #1a1a1a; color: #00ff00; font-family: 'Courier New', monospace; }
+        .chat-box { height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+
+    <header class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-800">
+        <div>
+            <h1 class="text-2xl font-bold text-blue-400">Gabi Gateway v1.0</h1>
+            <p class="text-sm text-gray-400">Admin-Konsole (Windows 11)</p>
+        </div>
+        <div id="status-badge" class="px-4 py-2 rounded-full bg-red-900 text-red-200">Checking...</div>
+    </header>
+
+<!-- Nach dem Status-Badge, vor dem Hauptcontainer -->
+
+<!-- Memory Control Panel -->
+<div class="mb-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+    <button onclick="showMemory()" class="bg-purple-600 px-4 py-2 rounded hover:bg-purple-500">
+        📚 Memory
+    </button>
+    <button onclick="showSkills()" class="bg-green-600 px-4 py-2 rounded hover:bg-green-500">
+        🛠️ Skills
+    </button>
+    <button onclick="showHeartbeat()" class="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500">
+        💓 Heartbeat
+    </button>
+    <button onclick="showMemoryStats()" class="bg-indigo-600 px-4 py-2 rounded hover:bg-indigo-500">
+        📊 Statistiken
+    </button>
+    <button onclick="archiveMemory()" class="bg-yellow-600 px-4 py-2 rounded hover:bg-yellow-500">
+        📦 Archivieren
+    </button>
+    <button onclick="resetMemory()" class="bg-red-600 px-4 py-2 rounded hover:bg-red-500">
+        ⚠️ Zurücksetzen
+    </button>
+<button onclick="generateSoul()" class="bg-pink-600 px-4 py-2 rounded hover:bg-pink-500">
+    🧬 Soul generieren
+</button>
+
+<button onclick="showSoul()" class="bg-purple-600 px-4 py-2 rounded hover:bg-purple-500">
+    💫 Soul anzeigen
+</button>
+<button onclick="showIdentity()" class="bg-blue-800 px-4 py-2 rounded hover:bg-blue-700">
+    🆔 Identity
+</button>
+</div>
+
+<!-- Memory Modal -->
+<div id="memory-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 p-6 rounded-lg max-w-4xl max-h-[80vh] overflow-auto w-full">
+        <div class="flex justify-between mb-4">
+            <h3 id="modal-title" class="text-xl font-bold">Memory</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-white">✖</button>
+        </div>
+        <pre id="modal-content" class="whitespace-pre-wrap font-mono text-sm bg-gray-900 p-4 rounded"></pre>
+    </div>
+</div>
+
+    <main class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <section class="bg-gray-800 p-4 rounded-lg shadow-xl">
+            <h2 class="text-xl mb-4 border-b border-gray-700 pb-2">Ollama Chat</h2>
+            <div id="chat-history" class="chat-box p-2 space-y-4 mb-4">
+                <div class="text-gray-500 italic">Bereit für deine Anfrage...</div>
+            </div>
+            <div class="flex gap-2">
+                <input id="chat-input" type="text" class="flex-1 bg-gray-700 p-2 rounded" placeholder="Frag Llama3.2...">
+                <button onclick="sendChat()" class="bg-blue-600 px-4 py-2 rounded hover:bg-blue-500">Senden</button>
+            </div>
+        </section>
+
+        <section class="bg-gray-800 p-4 rounded-lg shadow-xl">
+            <h2 class="text-xl mb-4 border-b border-gray-700 pb-2">Admin Shell</h2>
+            <div id="shell-output" class="terminal p-4 rounded h-64 overflow-y-auto mb-4 text-sm">
+                Microsoft Windows [Version 10.0.22631.4889]<br>Ready for command...
+            </div>
+            <div class="flex flex-col gap-2">
+                <div class="flex gap-2">
+                    <input id="shell-cmd" type="text" class="flex-1 bg-gray-700 p-2 rounded" placeholder="Befehl (z.B. dir, tasklist)">
+                    <input id="shell-args" type="text" class="w-1/3 bg-gray-700 p-2 rounded" placeholder="Args (z.B. /w)">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="runShell(false)" class="flex-1 bg-green-700 py-2 rounded hover:bg-green-600">Run</button>
+                    <button onclick="runShell(true)" class="flex-1 bg-purple-700 py-2 rounded hover:bg-purple-600">Run & Analyze</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const API_KEY = "sysop"; // Deine Variable aus der config.yaml
+
+        // Status-Update beim Laden
+        async function checkStatus() {
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                const badge = document.getElementById('status-badge');
+                if(data.gateway === "online") {
+                    badge.innerText = `Ollama: ${data.services.ollama.status}`;
+                    badge.className = "px-4 py-2 rounded-full bg-green-900 text-green-200";
+                }
+            } catch (e) { console.error("Status Check failed"); }
+        }
+
+        // Shell ausführen
+        async function runShell(analyze = false) {
+            const cmd = document.getElementById('shell-cmd').value;
+            const args = document.getElementById('shell-args').value.split(' ').filter(a => a);
+            const endpoint = analyze ? '/shell/analyze' : '/shell';
+            const outputDiv = document.getElementById('shell-output');
+
+            if (!cmd) {
+                outputDiv.innerHTML += `<br><span class="text-red-500">> Bitte einen Befehl eingeben!</span>`;
+                return;
+            }
+
+            outputDiv.innerHTML += `<br><span class="text-blue-400">> ${cmd} ${args.join(' ')}</span>`;
+            
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'token': API_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmd, args: args })
+                });
+                const data = await res.json();
+                
+                if(analyze) {
+                    outputDiv.innerHTML += `<br><span class="text-purple-400">📊 Analyse: ${data.analysis || data.message}</span>`;
+                } else {
+                    if (data.stdout) {
+                        outputDiv.innerHTML += `<br>${data.stdout}`;
+                    } else if (data.stderr) {
+                        outputDiv.innerHTML += `<br><span class="text-red-400">${data.stderr}</span>`;
+                    } else {
+                        outputDiv.innerHTML += `<br><span class="text-yellow-400">${data.message || 'Keine Ausgabe'}</span>`;
+                    }
+                }
+                outputDiv.scrollTop = outputDiv.scrollHeight;
+            } catch (e) {
+                outputDiv.innerHTML += `<br><span class="text-red-500">❌ Fehler: ${e}</span>`;
+            }
+        }
+
+        // Chat mit Ollama (Jetzt funktionsfähig!)
+        async function sendChat() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const chatHistory = document.getElementById('chat-history');
+            
+            // Platzhalter entfernen wenn erste Nachricht
+            if (chatHistory.children.length === 1 && chatHistory.children[0].classList.contains('text-gray-500')) {
+                chatHistory.innerHTML = '';
+            }
+            
+            // User-Nachricht anzeigen
+            chatHistory.innerHTML += `
+                <div class="flex justify-end">
+                    <div class="bg-blue-600 p-3 rounded-lg max-w-[80%] shadow">${message}</div>
+                </div>
+            `;
+            
+            input.value = '';
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 
+                        'token': API_KEY, 
+                        'Content-Type': 'application/json' 
+                    },
+                    body: JSON.stringify({ 
+                        message: message,
+                        model: 'llama3.2'
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    // Bot-Antwort anzeigen
+                    chatHistory.innerHTML += `
+                        <div class="flex justify-start">
+                            <div class="bg-gray-700 p-3 rounded-lg max-w-[80%] shadow border-l-4 border-blue-500">${data.reply}</div>
+                        </div>
+                    `;
+                } else {
+                    chatHistory.innerHTML += `
+                        <div class="flex justify-start">
+                            <div class="bg-red-700 p-3 rounded-lg max-w-[80%] shadow">❌ Fehler: ${data.message}</div>
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                chatHistory.innerHTML += `
+                    <div class="flex justify-start">
+                        <div class="bg-red-700 p-3 rounded-lg max-w-[80%] shadow">❌ Verbindungsfehler: ${e}</div>
+                    </div>
+                `;
+            }
+            
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // Enter-Taste zum Senden
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput) {
+                chatInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        sendChat();
+                    }
+                });
+            }
+        });
+
+        setInterval(checkStatus, 5000);
+        checkStatus();
+
+// Memory-Funktionen
+async function showMemory() {
+    try {
+        const res = await fetch('/api/memory', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        const data = await res.json();
+        
+        document.getElementById('modal-title').textContent = '📚 GABI Memory';
+        document.getElementById('modal-content').textContent = data.memory;
+        document.getElementById('memory-modal').classList.remove('hidden');
+        document.getElementById('memory-modal').classList.add('flex');
+    } catch (e) {
+        alert('Fehler beim Laden des Memory: ' + e);
+    }
+}
+
+async function showSkills() {
+    try {
+        const res = await fetch('/api/memory', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        const data = await res.json();
+        
+        document.getElementById('modal-title').textContent = '🛠️ GABI Skills';
+        document.getElementById('modal-content').textContent = data.skills;
+        document.getElementById('memory-modal').classList.remove('hidden');
+        document.getElementById('memory-modal').classList.add('flex');
+    } catch (e) {
+        alert('Fehler beim Laden der Skills: ' + e);
+    }
+}
+
+async function showHeartbeat() {
+    try {
+        const res = await fetch('/api/memory', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        const data = await res.json();
+        
+        document.getElementById('modal-title').textContent = '💓 GABI Heartbeat';
+        document.getElementById('modal-content').textContent = data.heartbeat;
+        document.getElementById('memory-modal').classList.remove('hidden');
+        document.getElementById('memory-modal').classList.add('flex');
+    } catch (e) {
+        alert('Fehler beim Laden des Heartbeat: ' + e);
+    }
+}
+
+function closeModal() {
+    document.getElementById('memory-modal').classList.add('hidden');
+    document.getElementById('memory-modal').classList.remove('flex');
+}
+
+// Im Status-Check auch die Konversationsanzahl anzeigen
+async function checkStatus() {
+    try {
+        const res = await fetch('/status');
+        const data = await res.json();
+        const badge = document.getElementById('status-badge');
+        
+        // Memory-Info abrufen
+        const memRes = await fetch('/api/memory', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        const memData = await memRes.json();
+        
+        if(data.gateway === "online") {
+            badge.innerText = `Ollama: ${data.services.ollama.status} | Gespräche: ${memData.conversation_count}`;
+            badge.className = "px-4 py-2 rounded-full bg-green-900 text-green-200";
+        }
+    } catch (e) { console.error("Status Check failed"); }
+}
+
+
+// Memory archivieren - KORRIGIERT mit POST Methode
+async function archiveMemory() {
+    if (!confirm('Memory archivieren? Die aktuelle Konversation wird in eine Archivdatei verschoben.')) {
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/memory/archive', {
+            method: 'POST',  // <-- WICHTIG: POST statt GET
+            headers: { 
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        const data = await res.json();
+        alert(data.message);
+    } catch (e) {
+        alert('Fehler beim Archivieren: ' + e);
+    }
+}
+
+// Memory zurücksetzen - KORRIGIERT mit POST Methode
+async function resetMemory() {
+    if (!confirm('⚠️ WIRKLICH das gesamte Memory zurücksetzen? Ein Backup wird erstellt.')) {
+        return;
+    }
+    
+    if (!confirm('Letzte Warnung: Alle Konversationen werden gelöscht! Fortfahren?')) {
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/memory/reset', {
+            method: 'POST',  // <-- WICHTIG: POST statt GET
+            headers: { 
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        const data = await res.json();
+        alert(`✅ ${data.message}\nBackup: ${data.backup_file}`);
+    } catch (e) {
+        alert('Fehler beim Zurücksetzen: ' + e);
+    }
+}
+
+
+// 🔥 NEU: Memory Statistiken anzeigen
+async function showMemoryStats() {
+    try {
+        const res = await fetch('/api/memory/stats', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            const stats = data.stats;
+            
+            // Formatiere die Archivliste
+            let archiveList = 'Keine Archive';
+            if (stats.archive_files && stats.archive_files.length > 0) {
+                archiveList = stats.archive_files.join('\n    ');
+            }
+            
+            alert(`📊 Memory-Statistiken
+            
+📁 Datei: ${stats.memory_file}
+📏 Größe: ${stats.file_size_kb} KB
+📝 Zeilen: ${stats.lines}
+💬 Konversationen: ${stats.conversations}
+🔄 Aktuelle Session: ${stats.history_count} Nachrichten
+📦 Archive: ${stats.archives_available}
+    
+Letzte Archive:
+    ${archiveList}`);
+        } else {
+            alert('Fehler beim Laden der Statistiken');
+        }
+    } catch (e) {
+        alert('Fehler beim Laden der Statistiken: ' + e);
+    }
+}
+
+
+async function generateSoul() {
+    try {
+        const res = await fetch('/api/memory/generate-soul', {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            let topicsMsg = '';
+            if (data.stats.top_topics.length > 0) {
+                topicsMsg = '\n\nTop Themen:\n' + data.stats.top_topics.map(t => `  - ${t[0]} (${t[1]}x)`).join('\n');
+            }
+            
+            alert(`✅ Soul generiert!${topicsMsg}\n\n📊 ${data.stats.user_messages} Nachrichten, ${data.stats.unique_words} verschiedene Wörter`);
+        } else {
+            alert('Fehler: ' + data.message);
+        }
+    } catch (e) {
+        alert('Fehler beim Generieren: ' + e);
+    }
+}
+
+async function showSoul() {
+    try {
+        const res = await fetch('/api/soul', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            document.getElementById('modal-title').textContent = '🧬 GABI Soul';
+            document.getElementById('modal-content').textContent = data.content;
+            document.getElementById('memory-modal').classList.remove('hidden');
+            document.getElementById('memory-modal').classList.add('flex');
+        } else {
+            alert('SOUL.md nicht gefunden: ' + data.message);
+        }
+    } catch (e) {
+        alert('Fehler beim Laden: ' + e);
+    }
+}
+
+function showSoulModal(content) {
+    document.getElementById('modal-title').textContent = '🧬 GABI Soul';
+    document.getElementById('modal-content').textContent = content;
+    document.getElementById('memory-modal').classList.remove('hidden');
+    document.getElementById('memory-modal').classList.add('flex');
+}
+
+
+async function showIdentity() {
+    try {
+        const res = await fetch('/api/identity', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            document.getElementById('modal-title').textContent = '🆔 GABI Identity';
+            document.getElementById('modal-content').textContent = data.identity;
+            document.getElementById('memory-modal').classList.remove('hidden');
+            document.getElementById('memory-modal').classList.add('flex');
+        } else {
+            alert('Fehler beim Laden der Identity');
+        }
+    } catch (e) {
+        alert('Fehler: ' + e);
+    }
+}
+
+</script>
+</body>
+</html>

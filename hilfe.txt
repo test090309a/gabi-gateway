@@ -1,0 +1,39 @@
+---jn 14022026
+mein openclaw geklautes gateway ;)
+M:\projekte_2026\claude-code\made-with-claude\gateway
+
+
+starten:
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+
+##################
+01:44 15.02.2026
+git repo erstellt:
+https://github.com/test090309a/gabi-gateway
+
+# 1. Status prüfen (welche Dateien wurden geändert?)
+git status
+
+# 2. Änderungen hinzufügen (nach dem Chatten)
+git add MEMORY.md SOUL.md HEARTBEAT.md  # Nur die wichtigen Dateien
+# Oder alles auf einmal:
+git add .
+
+# 3. Commit mit aussagekräftiger Nachricht
+git commit -m "Memory und Soul aktualisiert - neue Chat-Erfahrungen"
+
+# 4. Pushen zu GitHub
+git push
+
+
+#####################
+# 1. Am Ende des Tages:
+git add MEMORY.md SOUL.md HEARTBEAT.md
+git commit -m "Tägliches Update: $(date)"
+git push
+
+# Oder als Einzeiler:
+git add . && git commit -m "Update $(date)" && git push
+
+

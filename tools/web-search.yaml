@@ -1,0 +1,11 @@
+id: web-search
+description: Sucht im Internet nach aktuellen Informationen.
+params:
+  query:
+    type: string
+    description: Der Suchbegriff
+call:
+  command: python
+  args:
+    - "{{SKILL_DIR}}/web_search.py"
+    - "{{query}}"

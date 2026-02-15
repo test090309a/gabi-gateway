@@ -1,0 +1,26 @@
+host: "0.0.0.0"
+port: 8000
+api_key: "change-me-to-secure-random-key"
+
+ollama:
+  base_url: "http://localhost:11434"
+  default_model: "llama3.2"
+
+telegram:
+  bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
+
+gmail:
+  credentials_path: "credentials.json"
+  token_path: "token.json"
+
+shell:
+  allowed_commands:
+    - "ls"
+    - "pwd"
+    - "date"
+    - "echo"
+    - "cat"
+    - "git"
+    - "head"
+    - "tail"
+    - "wc"

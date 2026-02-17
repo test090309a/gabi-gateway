@@ -4,7 +4,8 @@ mein openclaw geklautes gateway ;)
 
 
 starten:
-  uvicorn main:app --reload --host 0.0.0.0 --port 8000
+  uvicorn main:app --reload --no-access-log --log-level warning
+  uvicorn main:app --reload --host 0.0.0.0 --port 8000 <<<< es kommen uvicorn meldungen
 
 
 ####################################################################################
@@ -52,5 +53,13 @@ W H I S P E R   S T A  R T E N
 
 
 - mit claude code whisper installiert und das dashboard verbessert.
+
+19:11 15.02.2026
+telegram nachrichten kommen und können gesendet werden
+/telegram send ...
+/telegram status
+/help
+
+shell befehle werden ausgeführt.
 
 

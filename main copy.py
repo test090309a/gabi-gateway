@@ -25,19 +25,6 @@ from gateway.ollama_client import ollama_client
 from integrations.telegram_bot import get_telegram_bot
 from integrations.gmail_client import gmail_client
 
-# === CUSTOM LOG LEVEL: MUTED ===
-MUTED_LEVEL = 15
-logging.addLevelName(MUTED_LEVEL, "MUTED")
-
-
-def _muted(self, message, *args, **kwargs):
-    if self.isEnabledFor(MUTED_LEVEL):
-        self._log(MUTED_LEVEL, message, args, **kwargs)
-
-
-if not hasattr(logging.Logger, "muted"):
-    logging.Logger.muted = _muted
-
 # === BLADE RUNNER QUOTES ===
 BLADE_RUNNER_QUOTES = [
     "I've seen things you people wouldn't believe...",
@@ -77,7 +64,7 @@ class GatewayFormatter(colorlog.ColoredFormatter if colorlog else object):
     }
 
     # Dominante/nicht-dominante Log-Level
-    QUIET_LEVELS = ['INFO', 'MUTED']  # Weniger dominant
+    QUIET_LEVELS = ['INFO']  # Weniger dominant
     LOUD_LEVELS = ['WARNING', 'ERROR', 'CRITICAL']  # Laut
 
     def __init__(self, *args, **kwargs):
@@ -86,19 +73,13 @@ class GatewayFormatter(colorlog.ColoredFormatter if colorlog else object):
         self.chatty_mode = CHATTY_MODE
 
     def format(self, record):
-        original_level = record.levelname
-        if record.levelname == "INFO" and not self.chatty_mode:
-            record.levelname = "MUTED"
-
-        # Module/category-based color
-        full_name = record.name.lower()
-        category = record.name.split('.')[-1].upper() if '.' in record.name else record.name.upper()
-        record.category = category
+        # Module-based color
+        module_name = record.name.split('.')[0] if '.' in record.name else record.name
 
         # Determine color based on module
         color = 'white'
         for key, col in self.COLORS.items():
-            if key in full_name:
+            if key in module_name.lower():
                 color = col
                 break
 
@@ -110,21 +91,8 @@ class GatewayFormatter(colorlog.ColoredFormatter if colorlog else object):
         if self.chatty_mode:
             color = 'white'  # More visible in chatty mode
 
-        if record.levelname == "MUTED" and not self.chatty_mode:
-            color = 'white'
-            record.category = f"\033[90m{record.category}\033[0m"
-
         # Set color for module
         record.log_color = color
-
-        raw_msg = record.getMessage()
-        if record.levelname == "MUTED" and not self.chatty_mode:
-            # Show muted logs in gray without noisy level labels.
-            record.msg = f"\033[90m{raw_msg}\033[0m"
-            record.args = ()
-        elif record.levelno >= logging.WARNING:
-            record.msg = f"[{original_level}] {raw_msg}"
-            record.args = ()
 
         # Dim certain patterns in stealth mode
         if self.stealth_mode and 'api/tags' in record.getMessage():
@@ -138,25 +106,11 @@ def setup_gateway_logging():
     global STEALTH_MODE, CHATTY_MODE
 
     if not colorlog:
-        logging.basicConfig(
-            level=MUTED_LEVEL,
-            format="%(asctime)s | %(name)s | %(message)s",
-            datefmt="%H:%M:%S",
-        )
+        logging.basicConfig(level=logging.INFO)
         return
 
     # Farbpalette: Schwarz/Weiß/Rot + Highlights
-
-    # log_format = "%(cyan)s%(asctime)s%(reset)s \033[90m|\033[0m %(log_color)s%(name)-35s%(reset)s \033[90m|\033[0m %(white)s%(message)s"
-
-    log_format = (
-        "%(cyan)s%(asctime)s%(reset)s "
-        "\033[90m|\033[0m "
-        "%(log_color)s%(name)-30s%(reset)s "
-        "\033[90m|\033[0m "
-        "%(white)s%(message)s"
-    )
-
+    log_format = "%(log_color)s%(levelname)-8s%(reset)s | %(white)s%(message)s"
     date_format = "%H:%M:%S"
 
     handler = colorlog.StreamHandler()
@@ -165,7 +119,6 @@ def setup_gateway_logging():
         datefmt=date_format,
         log_colors={
             'DEBUG': 'cyan',
-            'MUTED': 'white',
             'INFO': 'white',       # Weiß für Info (nicht dominant)
             'WARNING': 'yellow',   # Gelb für Warnung
             'ERROR': 'red',        # Rot für Fehler
@@ -190,12 +143,12 @@ def setup_gateway_logging():
     elif CHATTY_MODE:
         logger.setLevel(logging.DEBUG)  # Alles
     else:
-        logger.setLevel(MUTED_LEVEL)
+        logger.setLevel(logging.INFO)
 
     # Log-Level für httpx/uvicorn reduzieren
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
-    logging.getLogger('uvicorn.error').setLevel(MUTED_LEVEL)
+    logging.getLogger('uvicorn.error').setLevel(logging.INFO)
 
     return logger
 
@@ -211,15 +164,15 @@ def print_blade_runner_header():
     quote = random.choice(BLADE_RUNNER_QUOTES)
 
     header = f"""
-{dim}╔═══════════════════════════════════════════════════════╗{reset}
-{dim}║{reset}  {bold}{red}███{white}███{red}███{white}  {bold}GABI{red}  {white}GATEWAY{red}  v1.0.2{reset}                     {dim}║{reset}
-{dim}║{reset}        {white}More human than human{reset}                          {dim}║{reset}
-{dim}║{reset}  {dim}"I've seen things you people wouldn't believe..."{reset}    {dim}║{reset}
-{dim}║{reset}                                                       {dim}║{reset}
-{dim}║{reset}  {white}[{red}={white}] System:  {white}ONLINE{reset}                                  {dim}║{reset}
-{dim}║{reset}  {white}[{red}={white}] Mode:    {white}{'STEALTH' if STEALTH_MODE else 'CHATTY' if CHATTY_MODE else 'NORMAL'}{reset}                                  {dim}║{reset}
-{dim}║{reset}  {white}[{red}={white}] Time:    {white}{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{reset}                     {dim}║{reset}
-{dim}╚═══════════════════════════════════════════════════════╝{reset}
+{dim}╔═══════════════════════════════════════════════════════════════════{reset}
+{dim}║{reset}  {bold}{red}███{white}███{red}███{white}  {bold}GABI{red}  {white}GATEWAY{red}  v1.0.2{reset}                    {dim}║{reset}
+{dim}║{reset}        {white}More human than human{reset}                            {dim}║{reset}
+{dim}║{reset}  {dim}"I've seen things you people wouldn't believe..."{reset}          {dim}║{reset}
+{dim}║{reset}                                                             {dim}║{reset}
+{dim}║{reset}  {white}[{red}={white}] System: {white}ONLINE{reset}                                     {dim}║{reset}
+{dim}║{reset}  {white}[{red}={white}] Mode:    {white}{'STEALTH' if STEALTH_MODE else 'CHATTY' if CHATTY_MODE else 'NORMAL'}{reset}                                      {dim}║{reset}
+{dim}║{reset}  {white}[{red}={white}] Time:    {white}{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{reset}                        {dim}║{reset}
+{dim}╚═══════════════════════════════════════════════════════════════════{reset}
 
 {red}❧{white} {quote}{reset}
 """
@@ -228,28 +181,7 @@ def print_blade_runner_header():
 
 # === SETUP LOGGING ===
 setup_gateway_logging()
-
-# 1. Namen kürzen für perfekte Bündigkeit (Gegen das Springen)
-logging.getLogger("apscheduler.scheduler").name = "SCHEDULER"
-logging.getLogger("telegram.ext.Application").name = "TELEGRAM"
-logging.getLogger("gateway.http_api").name = "HTTP_API"
-logging.getLogger("gateway.ollama_client").name = "OLLAMA"
-
-# 2. Den nervigen Uvicorn-Startup-Text eliminieren
-logging.getLogger("uvicorn.error").disabled = True
-logging.getLogger("uvicorn.access").disabled = True
-
-# 3. Google-Cache-Warnung unterdrücken
-logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.ERROR)
-
-logger = logging.getLogger("GATEWAY") # Großgeschrieben sieht es schöner aus
-
-def _build_dashboard_urls(host: str, port: int) -> tuple[str, str]:
-    """Return bind URL and browser-friendly dashboard URL."""
-    bind_url = f"http://{host}:{port}"
-    dashboard_host = "localhost" if host in ("0.0.0.0", "::") else host
-    dashboard_url = f"http://{dashboard_host}:{port}"
-    return bind_url, dashboard_url
+logger = logging.getLogger("gateway")
 
 
 def start_telegram_bot():
@@ -258,7 +190,7 @@ def start_telegram_bot():
 
     bot = get_telegram_bot()
     if not bot.bot_token or bot.bot_token == "YOUR_TELEGRAM_BOT_TOKEN":
-        logger.muted("Telegram: Nicht konfiguriert, überspringe...")
+        logger.info("Telegram: Nicht konfiguriert, überspringe...")
         return
 
     loop = asyncio.new_event_loop()
@@ -269,7 +201,7 @@ def start_telegram_bot():
         loop.run_until_complete(bot.application.start())
         loop.run_until_complete(bot.application.updater.start_polling())
 
-        logger.muted("Telegram: Bot gestartet!")
+        logger.info("Telegram: Bot gestartet!")
 
         loop.run_forever()
     except KeyboardInterrupt:
@@ -290,13 +222,12 @@ def start_telegram_bot():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan."""
-    print_blade_runner_header()
-    logger.muted("Gateway: Starte System...")
+    logger.info("Gateway: Starte System...")
 
     # Load config
     try:
         config.load("config.yaml")
-        logger.muted("Config: Geladen")
+        logger.info("Config: Geladen")
     except FileNotFoundError as e:
         logger.error(f"Config: Nicht gefunden - {e}")
         raise
@@ -305,7 +236,7 @@ async def lifespan(app: FastAPI):
     try:
         models = ollama_client.list_models()
         model_count = len(models.get("models", []))
-        logger.muted(f"Ollama: Verbunden ({model_count} Modelle)")
+        logger.info(f"Ollama: Verbunden ({model_count} Modelle)")
     except Exception as e:
         logger.warning(f"Ollama: Nicht erreichbar - {e}")
 
@@ -314,37 +245,23 @@ async def lifespan(app: FastAPI):
     telegram_token = config.get("telegram.bot_token")
 
     if telegram_enabled and telegram_token and telegram_token != "YOUR_TELEGRAM_BOT_TOKEN":
-        logger.muted("Telegram: Starte Bot...")
+        logger.info("Telegram: Starte Bot...")
         bot_thread = threading.Thread(target=start_telegram_bot, daemon=True)
         bot_thread.start()
     else:
-        logger.muted("Telegram: Deaktiviert")
+        logger.info("Telegram: Deaktiviert")
 
     # Gateway Mode Announcement
     if STEALTH_MODE:
         logger.warning("Mode: STEALTH - Minimale Ausgabe aktiviert")
     elif CHATTY_MODE:
-        logger.muted("Mode: CHATTY - Verbose Logging aktiviert")
+        logger.info("Mode: CHATTY - Verbose Logging aktiviert")
     else:
-        logger.muted("Mode: NORMAL")
-
-    host = config.get("host", "0.0.0.0")
-    port = config.get("port", 8000)
-    bind_url, dashboard_url = _build_dashboard_urls(host, port)
-    # logger.muted(f"DASHBOARD: {dashboard_url}")
-
-    # Nutze logger.muted oder print, damit es im Worker erscheint
-    # \033[90m ist das typische Grau für "Muted" oder Metadaten
-    print(f"  \033 \033[0m")
-    print(f"  \033[91mGateway:        {bind_url}\033[0m")
-    # print(f"  \033[90mDashboard:      {dashboard_url}\033[0m")
-    print(f"  \033[97mAPI:            {dashboard_url}/docs\033[0m")
-    print(f"  \033[91mStatus:         \033[3mOnline\033[0m\n")
-    print(f"  \033 \033[0m")
+        logger.info("Mode: NORMAL")
 
     yield
 
-    logger.muted("Gateway: Shutdown...")
+    logger.info("Gateway: Shutdown...")
 
 
 # Create FastAPI app
@@ -385,17 +302,9 @@ if __name__ == "__main__":
     # Blade Runner Header
     print_blade_runner_header()
 
-    bind_url, dashboard_url = _build_dashboard_urls(host, port)
-    print(f"  Gateway (bind): {bind_url}")
-    print(f"  Dashboard:      {dashboard_url}")
-    print(f"  API:            {dashboard_url}/docs")
-    print("  Status:         Online")
-    print("\n  Druecke STRG+C zum Beenden\n")
+    print(f"  {white}🌐{red} Gateway: {white}http://{host}:{port}{reset}")
+    print(f"  {white}📡{red} API:    {white}http://{host}:{port}/docs{reset}")
+    print(f"  {white}💬{red} Status: {white}Online{reset}")
+    print(f"\n  {dim}Drücke STRG+C zum Beenden{reset}\n")
 
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        log_config=None,
-        access_log=False,
-    )
+    uvicorn.run(app, host=host, port=port)

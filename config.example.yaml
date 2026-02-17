@@ -5,9 +5,26 @@ api_key: "change-me-to-secure-random-key"
 ollama:
   base_url: "http://localhost:11434"
   default_model: "llama3.2"
+  timeout_seconds: 300
+  auto_max_model_size_b: 12
+  preferred_fast_models:
+    - "sam860/LFM2:2.6b"
+  preferred_code_models:
+    - "qwen2.5-coder:14b"
+  preferred_vision_models:
+    - "qwen3-vl:8b"
+
+comfyui:
+  host: "127.0.0.1"
+  port: 8188
 
 telegram:
   bot_token: "YOUR_TELEGRAM_BOT_TOKEN"
+  enabled: true
+  # Optional für proaktives Senden aus Webchat/API:
+  # chat_id: 123456789
+  # channel_id: "@dein_channel"
+  # chat_ids: [123456789, "@dein_channel"]
 
 gmail:
   credentials_path: "credentials.json"

@@ -39,6 +39,16 @@ class Config:
                 return default
         return value
 
+    def set(self, key: str, value: Any) -> None:
+        """Set config value by dot-notation key in memory."""
+        keys = key.split(".")
+        target = self._config
+        for part in keys[:-1]:
+            if part not in target or not isinstance(target[part], dict):
+                target[part] = {}
+            target = target[part]
+        target[keys[-1]] = value
+
     @property
     def data(self) -> dict:
         return self._config

@@ -7,22 +7,29 @@ import shutil
 import subprocess
 import os
 import json
+import base64
+import copy
 import asyncio
 import random
+import threading
+import uuid
+import socket
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Dict
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
-from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Header, BackgroundTasks, UploadFile, File, Form
 from pydantic import BaseModel
+import httpx
 from gateway.config import config
 from gateway.auth import verify_api_key
 from gateway.ollama_client import ollama_client
 from integrations.shell_executor import shell_executor
 from integrations.gmail_client import get_gmail_client
+from integrations.google_calendar_client import get_calendar_client
 from integrations.whisper_client import get_whisper_client
-from integrations.telegram_bot import get_telegram_bot
 from integrations.telegram_bot import get_telegram_bot
 # --- VARIABLEN & KONFIGURATION ---
 # Reduziere httpx/uvicorn Logging für sauberere Ausgabe
@@ -35,6 +42,1011 @@ router = APIRouter()
 # Standard-Modell aus der Config (Fallback: llama3.2)
 DEFAULT_MODEL = config.get("ollama.default_model", "llama3.2")
 API_KEY_REQUIRED = config.get("api_key", "sysop")
+_LAST_WHISPER_STATE: Optional[bool] = None
+_DISCOVERY_CACHE: Dict[str, Any] = {"ts": None, "data": {}}
+_CHAT_PROGRESS: Dict[str, Dict[str, Any]] = {}
+_CHAT_PROGRESS_LOCK = threading.Lock()
+
+
+class ChatCancelled(Exception):
+    """Raised when a chat request has been cancelled by the user."""
+
+
+def _log_whisper_state(available: bool, models: List[str]) -> None:
+    """Log Whisper status only on state changes to avoid polling noise."""
+    global _LAST_WHISPER_STATE
+    if _LAST_WHISPER_STATE is None:
+        _LAST_WHISPER_STATE = available
+        if not available:
+            logger.warning("Whisper ist nicht verfügbar")
+        return
+
+    if available != _LAST_WHISPER_STATE:
+        if available:
+            logger.warning(f"Whisper wieder verfügbar ({', '.join(models) if models else 'läuft'})")
+        else:
+            logger.warning("Whisper ist ausgefallen")
+        _LAST_WHISPER_STATE = available
+
+
+def _extract_model_score(name: str) -> float:
+    """Heuristic score for model size from its name (supports 1.2b, 24b, 70b)."""
+    lowered = (name or "").lower()
+    match = re.search(r"(\d+(?:\.\d+)?)\s*b", lowered)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
+def _pick_best_model(
+    available: List[str],
+    hints: Optional[List[str]] = None,
+    min_size: float = 0.0,
+    max_size: Optional[float] = None,
+) -> Optional[str]:
+    """Pick strongest model by optional hints and minimum size."""
+    if not available:
+        return None
+
+    pool = available
+    if hints:
+        hinted = [m for m in available if any(h in m.lower() for h in hints)]
+        if hinted:
+            pool = hinted
+
+    strong = [m for m in pool if _extract_model_score(m) >= min_size]
+    if strong:
+        pool = strong
+    if max_size and max_size > 0:
+        capped = [m for m in pool if 0 < _extract_model_score(m) <= max_size]
+        if capped:
+            pool = capped
+
+    return sorted(pool, key=_extract_model_score, reverse=True)[0] if pool else None
+
+
+def _as_model_pref_list(raw: Any) -> List[str]:
+    """Normalize model preference setting to a list of non-empty strings."""
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if str(x).strip()]
+    text = str(raw).strip()
+    if not text:
+        return []
+    if "," in text:
+        return [part.strip() for part in text.split(",") if part.strip()]
+    return [text]
+
+
+def _pick_preferred_available(available: List[str], preferred: List[str]) -> Optional[str]:
+    """Pick first preferred model present in available list (exact, then fuzzy contains)."""
+    if not available or not preferred:
+        return None
+    available_by_lower = {m.lower(): m for m in available}
+    for pref in preferred:
+        exact = available_by_lower.get(pref.lower())
+        if exact:
+            return exact
+    for pref in preferred:
+        pref_l = pref.lower()
+        for model in available:
+            if pref_l in model.lower():
+                return model
+    return None
+
+
+def _pick_fast_model(available: List[str]) -> Optional[str]:
+    """Pick a fast/small model for routing/self-check tasks."""
+    if not available:
+        return None
+
+    preferred = _as_model_pref_list(config.get("ollama.preferred_fast_models")) or _as_model_pref_list(
+        config.get("ollama.preferred_fast_model")
+    )
+    preferred_fast = _pick_preferred_available(available, preferred)
+    if preferred_fast:
+        return preferred_fast
+
+    fast_hints = ["lfm", "mini", "small", "tiny", "phi", "gemma:2b", "1.5b", "1.2b", "2b", "3b"]
+    fast_candidates = [m for m in available if any(h in m.lower() for h in fast_hints)]
+    if not fast_candidates:
+        fast_candidates = available
+
+    # Prefer smaller models; unknown size gets lowest priority by assigning high fallback score.
+    def fast_key(name: str) -> float:
+        score = _extract_model_score(name)
+        return score if score > 0 else 9999.0
+
+    return sorted(fast_candidates, key=fast_key)[0] if fast_candidates else None
+
+
+def _extract_json_object(raw: str) -> Optional[Dict[str, Any]]:
+    """Extract and parse first JSON object from a raw model response."""
+    if not raw:
+        return None
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"\s*```$", "", text).strip()
+
+    # Direct JSON
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    # Best-effort object extraction
+    match = re.search(r"\{[\s\S]*\}", text)
+    if not match:
+        return None
+    try:
+        parsed = json.loads(match.group(0))
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        return None
+    return None
+
+
+def _extract_ollama_text(payload: Any) -> str:
+    """Extract textual content from varied Ollama response shapes."""
+    if payload is None:
+        return ""
+    if isinstance(payload, str):
+        return payload.strip()
+    if isinstance(payload, dict):
+        if "message" in payload:
+            return _extract_ollama_text(payload.get("message"))
+        if isinstance(payload.get("response"), str):
+            return payload.get("response", "").strip()
+        content = payload.get("content")
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            chunks: List[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    chunks.append(item)
+                elif isinstance(item, dict):
+                    text_value = item.get("text") or item.get("content") or ""
+                    if text_value:
+                        chunks.append(str(text_value))
+            return "\n".join(chunks).strip()
+        return ""
+    if isinstance(payload, list):
+        chunks = [_extract_ollama_text(item) for item in payload]
+        return "\n".join([c for c in chunks if c]).strip()
+    return str(payload).strip()
+
+
+async def _ollama_chat_async(*, model: str, messages: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
+    """Run blocking Ollama chat call in worker thread."""
+    return await asyncio.to_thread(ollama_client.chat, model=model, messages=messages, **kwargs)
+
+
+async def _ollama_generate_async(*, model: str, prompt: str, **kwargs) -> Dict[str, Any]:
+    """Run blocking Ollama generate call in worker thread."""
+    return await asyncio.to_thread(ollama_client.generate, model=model, prompt=prompt, **kwargs)
+
+
+async def _ollama_list_models_async() -> Dict[str, Any]:
+    """Run blocking Ollama model listing in worker thread."""
+    return await asyncio.to_thread(ollama_client.list_models)
+
+
+def _run_fast_router_check(
+    user_message: str,
+    available: List[str],
+    progress_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Check prompt with a fast LLM before selecting final answer model.
+    Returns routing hints: complexity/domain/self_question/prefer_fast.
+    """
+    fast_model = _pick_fast_model(available)
+    if not fast_model or not user_message:
+        return {
+            "checked": False,
+            "router_model": None,
+            "complexity": "unknown",
+            "domain": "general",
+            "self_question": False,
+            "prefer_fast": False,
+        }
+
+    _ensure_not_cancelled(progress_id)
+    _progress_add(progress_id, f"Router-Check gestartet ({fast_model})", "fa-route")
+    router_messages = [
+        {
+            "role": "system",
+            "content": (
+                "Du bist ein Prompt-Router. Antworte NUR mit JSON ohne Erklaerung. "
+                "Schema: {\"complexity\":\"low|medium|high\",\"domain\":\"general|code|search|ops\","
+                "\"self_question\":true|false,\"prefer_fast\":true|false}."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"Prompt: {user_message}\n"
+                "Regeln:\n"
+                "- high: komplexe Architektur/Code/Mehrschritt-Aufgabe\n"
+                "- prefer_fast=true nur bei Smalltalk/kurzer einfacher Antwort\n"
+                "- self_question=true wenn der Prompt explizit Selbstbefragung/Selbstcheck beschreibt."
+            ),
+        },
+    ]
+
+    try:
+        router_resp = ollama_client.chat(
+            model=fast_model,
+            messages=router_messages,
+            options={"temperature": 0, "num_predict": 120},
+        )
+        _ensure_not_cancelled(progress_id)
+        raw = router_resp.get("message", {}).get("content", "")
+        parsed = _extract_json_object(raw) or {}
+        complexity = str(parsed.get("complexity", "unknown")).lower()
+        domain = str(parsed.get("domain", "general")).lower()
+        self_question = bool(parsed.get("self_question", False))
+        prefer_fast = bool(parsed.get("prefer_fast", False))
+
+        # Guardrail: tiny greetings should never be escalated to complex/code.
+        msg = (user_message or "").lower().strip()
+        greeting_terms = {"hey", "hi", "hallo", "servus", "moin"}
+        if len(msg.split()) <= 4 and msg.strip("!?., ") in greeting_terms:
+            complexity = "low"
+            domain = "general"
+            prefer_fast = True
+
+        logger.info(
+            f"Router-Check: model={fast_model} complexity={complexity} domain={domain} self={self_question} fast={prefer_fast}"
+        )
+        _progress_add(
+            progress_id,
+            f"Router-Check Ergebnis: complexity={complexity}, domain={domain}, fast={prefer_fast}",
+            "fa-route",
+        )
+        return {
+            "checked": True,
+            "router_model": fast_model,
+            "complexity": complexity,
+            "domain": domain,
+            "self_question": self_question,
+            "prefer_fast": prefer_fast,
+        }
+    except ChatCancelled:
+        raise
+    except Exception as e:
+        logger.warning(f"Router-Check fehlgeschlagen: {e}")
+        _progress_add(progress_id, f"Router-Check fehlgeschlagen: {e}", "fa-exclamation-triangle")
+        return {
+            "checked": False,
+            "router_model": fast_model,
+            "complexity": "unknown",
+            "domain": "general",
+            "self_question": False,
+            "prefer_fast": False,
+        }
+
+
+def _is_complex_request(msg: str) -> bool:
+    if not msg:
+        return False
+    text = msg.lower().strip()
+    complexity_signals = [
+        "architektur", "design", "konzept", "implementierung", "code", "cms", "api",
+        "datenbank", "auth", "rbac", "migration", "refactor", "performance",
+        "sicherheit", "test", "pipeline", "backend", "frontend", "fullstack",
+        "gerüst", "struktur", "framework", "komplex", "mehrstufig",
+    ]
+    long_text = len(text) > 140 or len(text.split()) > 22
+    return long_text or any(sig in text for sig in complexity_signals)
+
+
+def _auto_select_model(
+    user_message: str,
+    requested_model: Optional[str] = None,
+    progress_id: Optional[str] = None,
+) -> str:
+    """Wählt das Modell: komplex/code => stark, smalltalk/einfache Fragen => schnell."""
+
+    try:
+        models_info = ollama_client.list_models()
+        available = [m.get("name") for m in models_info.get("models", []) if m.get("name")]
+    except Exception:
+        available = []
+
+    if not available:
+        return DEFAULT_MODEL
+
+    try:
+        max_auto_size = float(config.get("ollama.auto_max_model_size_b", 12.0) or 0)
+    except Exception:
+        max_auto_size = 12.0
+
+    router_hint = _run_fast_router_check(user_message, available, progress_id=progress_id)
+    msg = (user_message or "").lower().strip()
+    code_signals = [
+        "code", "cms", "python", "html", "script", "programm", "css", "sql", "api",
+        "backend", "frontend", "landingpage", "landing page", "webseite", "website",
+        "ui", "layout", "design",
+    ]
+    coder_hints = ["coder", "code", "codellama", "starcoder", "deepseek-coder", "qwen2.5-coder", "mistral", "llama"]
+    is_code = any(sig in msg for sig in code_signals) or router_hint.get("domain") == "code"
+    is_complex = _is_complex_request(msg) or router_hint.get("complexity") == "high"
+    prefer_fast = bool(router_hint.get("prefer_fast"))
+    self_question = bool(router_hint.get("self_question"))
+    is_short_general_question = (
+        msg.endswith("?")
+        and len(msg.split()) <= 12
+        and not is_code
+        and not is_complex
+    )
+    greeting_terms = {"hey", "hi", "hallo", "servus", "moin"}
+    is_smalltalk = len(msg.split()) <= 4 and msg.strip("!?., ") in greeting_terms
+
+    if is_smalltalk:
+        prefer_fast = True
+
+    # Gateway can answer self-check style prompts with fast model.
+    if self_question:
+        fast_self_model = _pick_fast_model(available)
+        if fast_self_model:
+            logger.info(f"Model-Routing: self-question -> {fast_self_model}")
+            _progress_add(progress_id, f"Model-Routing: self-question -> {fast_self_model}", "fa-code-branch")
+            return fast_self_model
+
+    # Requested model is a preference, but for complex requests tiny models are auto-upgraded.
+    if requested_model and requested_model in available:
+        req_size = _extract_model_score(requested_model)
+        if is_complex and req_size < 7.0:
+            upgraded = _pick_best_model(
+                available,
+                hints=coder_hints if is_code else None,
+                min_size=7.0,
+                max_size=max_auto_size if max_auto_size > 0 else None,
+            ) or _pick_best_model(available, max_size=max_auto_size if max_auto_size > 0 else None)
+            if upgraded and upgraded != requested_model:
+                logger.info(
+                    f"Model-Routing: komplexe Anfrage erkannt -> Upgrade {requested_model} -> {upgraded}"
+                )
+                _progress_add(progress_id, f"Model-Routing: Upgrade {requested_model} -> {upgraded}", "fa-code-branch")
+                return upgraded
+        if prefer_fast and req_size >= 7.0:
+            fast_model = _pick_fast_model(available)
+            if fast_model:
+                logger.info(f"Model-Routing: fast-preference -> {requested_model} -> {fast_model}")
+                _progress_add(progress_id, f"Model-Routing: fast-preference -> {fast_model}", "fa-code-branch")
+                return fast_model
+        _progress_add(progress_id, f"Model-Routing: fixiertes Modell {requested_model}", "fa-code-branch")
+        return requested_model
+
+    # If requested model is missing, fall back to auto routing.
+    if requested_model and requested_model not in available:
+        logger.warning(f"Model-Routing: angefordertes Modell nicht verfügbar: {requested_model}")
+
+    preferred_code = _as_model_pref_list(config.get("ollama.preferred_code_models")) or _as_model_pref_list(
+        config.get("ollama.preferred_code_model")
+    )
+    preferred_general = _as_model_pref_list(config.get("ollama.preferred_general_models")) or _as_model_pref_list(
+        config.get("ollama.preferred_general_model")
+    )
+
+    if is_code:
+        preferred_code_model = _pick_preferred_available(available, preferred_code)
+        if preferred_code_model:
+            _progress_add(progress_id, f"Model-Routing: code-preferred -> {preferred_code_model}", "fa-code-branch")
+            return preferred_code_model
+        best_code = _pick_best_model(
+            available,
+            hints=coder_hints,
+            min_size=7.0,
+            max_size=max_auto_size if max_auto_size > 0 else None,
+        ) or _pick_best_model(
+            available,
+            hints=coder_hints,
+            max_size=max_auto_size if max_auto_size > 0 else None,
+        )
+        if best_code:
+            _progress_add(progress_id, f"Model-Routing: code -> {best_code}", "fa-code-branch")
+            return best_code
+
+    if is_complex:
+        best_complex = _pick_best_model(
+            available,
+            min_size=7.0,
+            max_size=max_auto_size if max_auto_size > 0 else None,
+        ) or _pick_best_model(
+            available,
+            max_size=max_auto_size if max_auto_size > 0 else None,
+        )
+        if best_complex:
+            _progress_add(progress_id, f"Model-Routing: complex -> {best_complex}", "fa-code-branch")
+            return best_complex
+
+    if prefer_fast or is_short_general_question:
+        best_fast = _pick_fast_model(available)
+        if best_fast:
+            _progress_add(progress_id, f"Model-Routing: fast -> {best_fast}", "fa-code-branch")
+            return best_fast
+
+    smalltalk_keywords = ["hallo", "hi", "hey", "wie geht", "wer bist du"]
+    if len(msg) < 50 and any(word in msg for word in smalltalk_keywords):
+        best_fast = _pick_fast_model(available)
+        if best_fast:
+            _progress_add(progress_id, f"Model-Routing: smalltalk -> {best_fast}", "fa-code-branch")
+            return best_fast
+
+    if DEFAULT_MODEL in available:
+        _progress_add(progress_id, f"Model-Routing: default -> {DEFAULT_MODEL}", "fa-code-branch")
+        return DEFAULT_MODEL
+
+    preferred_general_model = _pick_preferred_available(available, preferred_general)
+    if preferred_general_model:
+        _progress_add(progress_id, f"Model-Routing: general-preferred -> {preferred_general_model}", "fa-code-branch")
+        return preferred_general_model
+
+    final_model = _pick_best_model(available, max_size=max_auto_size if max_auto_size > 0 else None) or DEFAULT_MODEL
+    _progress_add(progress_id, f"Model-Routing: fallback -> {final_model}", "fa-code-branch")
+    return final_model
+
+
+def _normalize_telegram_chat_id(raw_id: Any) -> Optional[Any]:
+    """Normalize chat id from config/session to int or @name string."""
+    if raw_id is None:
+        return None
+    if isinstance(raw_id, int):
+        return raw_id
+    text = str(raw_id).strip()
+    if not text:
+        return None
+    if text.lstrip("-").isdigit():
+        return int(text)
+    if text.startswith("@"):
+        return text
+    return f"@{text}"
+
+
+def _should_enable_self_qa(user_message: str, router_hint: Optional[Dict[str, Any]] = None) -> bool:
+    """Enable lightweight self-questioning for complex or explicitly requested deep tasks."""
+    msg = (user_message or "").lower().strip()
+    if not msg:
+        return False
+    explicit_terms = [
+        "perfekt",
+        "gründlich",
+        "genau",
+        "denke",
+        "denk",
+        "schritt",
+        "plan",
+        "strategie",
+        "analys",
+        "prüf",
+    ]
+    explicit = any(t in msg for t in explicit_terms)
+    complex_hint = bool((router_hint or {}).get("complexity") == "high")
+    return explicit or complex_hint or _is_complex_request(msg)
+
+
+def _run_self_qa_precheck(
+    user_message: str,
+    available: List[str],
+    router_hint: Optional[Dict[str, Any]] = None,
+    progress_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Build compact internal Q/A context with a fast model and expose steps for UI tracing.
+    """
+    if not _should_enable_self_qa(user_message, router_hint):
+        return {"analysis_context": "", "thinking_steps": []}
+
+    thinking_steps: List[Dict[str, str]] = []
+    fast_model = _pick_fast_model(available) or DEFAULT_MODEL
+    now_iso = datetime.now().isoformat()
+    thinking_steps.append(
+        {
+            "text": f"Gateway startet interne Selbstfragen mit {fast_model}",
+            "icon": "fa-brain",
+            "time": now_iso,
+        }
+    )
+    _progress_add(progress_id, f"Self-QA startet mit {fast_model}", "fa-brain")
+
+    try:
+        _ensure_not_cancelled(progress_id)
+        planner_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Erzeuge nur JSON: {\"questions\":[\"...\",\"...\"]}. "
+                    "Maximal 2 kurze interne Rueckfragen, die helfen die Nutzeranfrage besser zu loesen."
+                ),
+            },
+            {"role": "user", "content": user_message},
+        ]
+        planner_resp = ollama_client.chat(
+            model=fast_model,
+            messages=planner_messages,
+            options={"temperature": 0, "num_predict": 100},
+        )
+        _ensure_not_cancelled(progress_id)
+        planner_raw = planner_resp.get("message", {}).get("content", "")
+        planner_obj = _extract_json_object(planner_raw) or {}
+        raw_questions = planner_obj.get("questions", [])
+        questions = [str(q).strip() for q in raw_questions if str(q).strip()][:2]
+        if not questions:
+            questions = [
+                "Was ist das konkrete Ziel der Nutzeranfrage?",
+                "Welche Annahmen muss ich absichern, damit die Antwort korrekt ist?",
+            ]
+
+        qa_lines = []
+        for idx, q in enumerate(questions, 1):
+            _ensure_not_cancelled(progress_id)
+            thinking_steps.append(
+                {
+                    "text": f"Selbstfrage {idx}: {q}",
+                    "icon": "fa-question-circle",
+                    "time": datetime.now().isoformat(),
+                }
+            )
+            _progress_add(progress_id, f"Self-QA Frage {idx}: {q}", "fa-question-circle")
+            qa_resp = ollama_client.chat(
+                model=fast_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Beantworte interne Arbeitsfragen kurz und konkret in 1-2 Saetzen.",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Nutzeranfrage: {user_message}\nInterne Frage: {q}",
+                    },
+                ],
+                options={"temperature": 0.1, "num_predict": 140},
+            )
+            _ensure_not_cancelled(progress_id)
+            a = (qa_resp.get("message", {}).get("content", "") or "").strip()
+            if not a:
+                a = "Keine klare Zusatzinformation gefunden."
+            qa_lines.append(f"- {q}\n  Antwort: {a}")
+            thinking_steps.append(
+                {
+                    "text": f"Selbstantwort {idx} erhalten",
+                    "icon": "fa-check-circle",
+                    "time": datetime.now().isoformat(),
+                }
+            )
+            _progress_add(progress_id, f"Self-QA Antwort {idx} erhalten", "fa-check-circle")
+
+        analysis_context = (
+            "Interne Voranalyse (kompakt, zur Qualitaetsverbesserung):\n"
+            + "\n".join(qa_lines)
+            + "\nNutze diese Punkte fuer eine praezise Endantwort."
+        )
+        return {"analysis_context": analysis_context, "thinking_steps": thinking_steps}
+    except ChatCancelled:
+        raise
+    except Exception as e:
+        logger.warning(f"Self-QA Precheck fehlgeschlagen: {e}")
+        thinking_steps.append(
+            {
+                "text": f"Self-QA konnte nicht vollständig laufen: {e}",
+                "icon": "fa-exclamation-triangle",
+                "time": datetime.now().isoformat(),
+            }
+        )
+        return {"analysis_context": "", "thinking_steps": thinking_steps}
+
+
+def _get_telegram_target_chat_ids(bot) -> List[Any]:
+    """Collect Telegram targets from active sessions and config."""
+    targets = set()
+
+    if hasattr(bot, "_user_sessions") and isinstance(bot._user_sessions, dict):
+        targets.update(bot._user_sessions.keys())
+
+    configured_raw: List[Any] = []
+    for key in ("telegram.chat_id", "telegram.channel_id"):
+        value = config.get(key)
+        if value:
+            configured_raw.append(value)
+
+    # Legacy fallback: key literally named "telegram.chat_id" inside telegram object
+    telegram_cfg = config.data.get("telegram", {}) if isinstance(config.data, dict) else {}
+    legacy_chat_id = telegram_cfg.get("telegram.chat_id") if isinstance(telegram_cfg, dict) else None
+    if legacy_chat_id:
+        configured_raw.append(legacy_chat_id)
+
+    chat_ids_value = config.get("telegram.chat_ids", [])
+    if isinstance(chat_ids_value, list):
+        configured_raw.extend(chat_ids_value)
+    elif isinstance(chat_ids_value, str) and chat_ids_value.strip():
+        configured_raw.extend([part.strip() for part in chat_ids_value.split(",") if part.strip()])
+
+    for raw in configured_raw:
+        normalized = _normalize_telegram_chat_id(raw)
+        if normalized is not None:
+            targets.add(normalized)
+
+    return list(targets)
+
+
+def _parse_explicit_telegram_targets(raw_targets: Any) -> List[Any]:
+    """Parse explicit Telegram targets from API payload."""
+    parsed: List[Any] = []
+    if raw_targets is None:
+        return parsed
+
+    items: List[Any] = []
+    if isinstance(raw_targets, list):
+        items = raw_targets
+    else:
+        items = [part.strip() for part in str(raw_targets).split(",") if part.strip()]
+
+    for item in items:
+        normalized = _normalize_telegram_chat_id(item)
+        if normalized is not None:
+            parsed.append(normalized)
+
+    return parsed
+
+
+def _infer_model_capabilities(name: str, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Infer practical model capabilities from model name/details."""
+    lowered = (name or "").lower()
+    details_text = json.dumps(details or {}, ensure_ascii=False).lower()
+    merged = f"{lowered} {details_text}"
+    vision_hints = ["vl", "vision", "llava", "moondream", "minicpm-v", "internvl", "qwen2.5vl", "bakllava"]
+    tool_hints = ["tool", "function", "json"]
+    supports_vision = any(h in merged for h in vision_hints)
+    supports_tools = any(h in merged for h in tool_hints)
+    return {
+        "vision": supports_vision,
+        "tools": supports_tools,
+    }
+
+
+def _pick_vision_model(available: List[str], requested_model: Optional[str] = None) -> Optional[str]:
+    """Pick a model that can process images."""
+    if not available:
+        return None
+    if requested_model and requested_model in available:
+        if _infer_model_capabilities(requested_model).get("vision"):
+            return requested_model
+    vision_candidates = [m for m in available if _infer_model_capabilities(m).get("vision")]
+    if not vision_candidates:
+        return None
+    preferred_vision = _as_model_pref_list(config.get("ollama.preferred_vision_models")) or _as_model_pref_list(
+        config.get("ollama.preferred_vision_model")
+    )
+    preferred_vision_model = _pick_preferred_available(vision_candidates, preferred_vision)
+    if preferred_vision_model:
+        return preferred_vision_model
+    preferred = ["qwen2.5vl", "llava", "minicpm-v", "moondream", "vision", "vl"]
+    for hint in preferred:
+        hinted = [m for m in vision_candidates if hint in m.lower()]
+        if hinted:
+            return sorted(hinted, key=_extract_model_score, reverse=True)[0]
+    return sorted(vision_candidates, key=_extract_model_score, reverse=True)[0]
+
+
+def _extract_search_term(text: str, triggers: List[str]) -> str:
+    raw = (text or "").strip()
+    lowered = raw.lower()
+    term = raw
+    for trigger in triggers:
+        if trigger in lowered:
+            pos = lowered.find(trigger) + len(trigger)
+            term = raw[pos:].strip()
+            break
+    term = re.sub(r"^(?:zum|zu|zur)\s+thema\s+", "", term, flags=re.IGNORECASE).strip()
+    term = re.sub(r"^thema\s+", "", term, flags=re.IGNORECASE).strip()
+    term = re.sub(
+        r"\s+(?:und\s+)?gib\s+mir\s+(?:eine|einen|ein)?\s*(?:kurze|knappe)?\s*(?:zusammenfassung|liste|überblick).*$",
+        "",
+        term,
+        flags=re.IGNORECASE,
+    ).strip()
+    term = re.sub(r"\s+(?:als|bitte|danke|tabellarisch|json|tabelle)$", "", term, flags=re.IGNORECASE)
+    return term.strip(' "')
+
+
+def _wants_summary_after_search(text: str) -> bool:
+    lowered = (text or "").lower()
+    summary_terms = [
+        "zusammenfassung",
+        "zusammenfassen",
+        "fasse zusammen",
+        "kurz zusammen",
+        "summary",
+        "resümee",
+        "ergebnis",
+    ]
+    return any(t in lowered for t in summary_terms)
+
+
+def _scan_image_models(max_items: int = 30) -> List[str]:
+    """Look for common image model files from ComfyUI/Invoke and known model dirs."""
+    exts = {".safetensors", ".ckpt", ".onnx", ".pt"}
+    results: List[str] = []
+    roots: List[Path] = []
+    env_candidates = [
+        os.environ.get("COMFYUI_HOME", "").strip(),
+        os.environ.get("INVOKEAI_ROOT", "").strip(),
+    ]
+    for raw in env_candidates:
+        if raw:
+            p = Path(raw)
+            if p.exists():
+                roots.append(p)
+    user_profile = os.environ.get("USERPROFILE", "").strip()
+    if user_profile:
+        for candidate in [Path(user_profile) / "ComfyUI", Path(user_profile) / "invokeai"]:
+            if candidate.exists():
+                roots.append(candidate)
+    for hard in [Path("ComfyUI"), Path("invokeai"), Path("models"), Path.cwd() / "ComfyUI"]:
+        if hard.exists():
+            roots.append(hard)
+
+    seen = set()
+    for root in roots:
+        for sub in [root, root / "models", root / "models" / "checkpoints", root / "models" / "diffusion_models"]:
+            if not sub.exists() or not sub.is_dir():
+                continue
+            try:
+                for path in sub.rglob("*"):
+                    if len(results) >= max_items:
+                        return sorted(results)
+                    if not path.is_file() or path.suffix.lower() not in exts:
+                        continue
+                    rel = str(path)
+                    if rel in seen:
+                        continue
+                    seen.add(rel)
+                    results.append(rel)
+            except Exception:
+                continue
+    return sorted(results)
+
+
+def _is_tcp_port_open(host: str, port: int, timeout: float = 0.35) -> bool:
+    """Best-effort TCP port probe."""
+    try:
+        with socket.create_connection((host, int(port)), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def _get_tool_discovery(force: bool = False) -> Dict[str, Any]:
+    """Discover optional local AI tools (ComfyUI/Invoke) with lightweight caching."""
+    global _DISCOVERY_CACHE
+    now = datetime.now()
+    cached_ts = _DISCOVERY_CACHE.get("ts")
+    if not force and cached_ts and isinstance(cached_ts, datetime):
+        if (now - cached_ts).total_seconds() < 300:
+            return _DISCOVERY_CACHE.get("data", {})
+
+    comfy_root = None
+    comfy_main = None
+    comfy_candidates: List[Path] = []
+    comfy_env = os.environ.get("COMFYUI_HOME", "").strip()
+    if comfy_env:
+        comfy_candidates.append(Path(comfy_env))
+    comfy_candidates.extend([
+        Path.cwd() / "ComfyUI",
+        Path.home() / "ComfyUI",
+        Path("C:/ComfyUI"),
+    ])
+    for c in comfy_candidates:
+        if c.exists() and c.is_dir() and (c / "main.py").exists():
+            comfy_root = str(c.resolve())
+            comfy_main = str((c / "main.py").resolve())
+            break
+
+    invoke_bin = shutil.which("invokeai")
+    invoke_root = os.environ.get("INVOKEAI_ROOT", "")
+    image_models = _scan_image_models()
+    comfy_port = int(config.get("comfyui.port", 8188) or 8188)
+    comfy_host = str(config.get("comfyui.host", "127.0.0.1") or "127.0.0.1")
+    comfy_running = _is_tcp_port_open(comfy_host, comfy_port)
+    comfy_url = f"http://{comfy_host}:{comfy_port}"
+
+    data = {
+        "comfyui": {
+            "found": bool(comfy_root or comfy_running),
+            "root": comfy_root,
+            "main_py": comfy_main,
+            "running": comfy_running,
+            "url": comfy_url,
+            "port": comfy_port,
+            "host": comfy_host,
+        },
+        "invoke": {
+            "found": bool(invoke_bin or invoke_root),
+            "binary": invoke_bin,
+            "root": invoke_root or None,
+        },
+        "image_models_found": len(image_models),
+        "image_models": image_models[:20],
+    }
+    _DISCOVERY_CACHE = {"ts": now, "data": data}
+    return data
+
+
+def _start_comfyui(discovery: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Try to start ComfyUI if installation is known."""
+    info = discovery or _get_tool_discovery(force=True)
+    comfy = info.get("comfyui", {})
+    root = comfy.get("root")
+    main_py = comfy.get("main_py")
+    if not (root and main_py and os.path.exists(main_py)):
+        return {"ok": False, "message": "ComfyUI nicht gefunden."}
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, main_py, "--listen"],
+            cwd=root,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            shell=False,
+        )
+        return {
+            "ok": True,
+            "pid": proc.pid,
+            "command": f"{sys.executable} {main_py} --listen",
+            "cwd": root,
+        }
+    except Exception as e:
+        return {"ok": False, "message": str(e)}
+
+
+def _progress_init(request_id: str) -> None:
+    with _CHAT_PROGRESS_LOCK:
+        _CHAT_PROGRESS[request_id] = {
+            "steps": [],
+            "updated_at": datetime.now().isoformat(),
+            "done": False,
+            "cancelled": False,
+            "active_model": None,
+        }
+
+
+def _progress_add(request_id: Optional[str], text: str, icon: str = "fa-brain", details: str = "") -> None:
+    if not request_id:
+        return
+    entry = {
+        "text": text,
+        "icon": icon,
+        "time": datetime.now().isoformat(),
+    }
+    if details:
+        entry["details"] = details
+    with _CHAT_PROGRESS_LOCK:
+        state = _CHAT_PROGRESS.get(request_id)
+        if not state:
+            return
+        state["steps"].append(entry)
+        state["updated_at"] = datetime.now().isoformat()
+
+
+def _progress_set_active_model(request_id: Optional[str], model: Optional[str]) -> None:
+    if not request_id:
+        return
+    with _CHAT_PROGRESS_LOCK:
+        state = _CHAT_PROGRESS.get(request_id)
+        if state is not None:
+            state["active_model"] = model
+            state["updated_at"] = datetime.now().isoformat()
+
+
+def _progress_mark_done(request_id: Optional[str]) -> None:
+    if not request_id:
+        return
+    with _CHAT_PROGRESS_LOCK:
+        state = _CHAT_PROGRESS.get(request_id)
+        if state is not None:
+            state["done"] = True
+            state["updated_at"] = datetime.now().isoformat()
+
+
+def _progress_cancel(request_id: str) -> None:
+    with _CHAT_PROGRESS_LOCK:
+        state = _CHAT_PROGRESS.get(request_id)
+        if state is not None:
+            state["cancelled"] = True
+            state["updated_at"] = datetime.now().isoformat()
+
+
+def _progress_is_cancelled(request_id: Optional[str]) -> bool:
+    if not request_id:
+        return False
+    with _CHAT_PROGRESS_LOCK:
+        state = _CHAT_PROGRESS.get(request_id)
+        return bool(state and state.get("cancelled"))
+
+
+def _ensure_not_cancelled(request_id: Optional[str]) -> None:
+    if _progress_is_cancelled(request_id):
+        raise ChatCancelled("Anfrage wurde abgebrochen")
+
+
+def _progress_get(request_id: str, since: int = 0) -> Dict[str, Any]:
+    with _CHAT_PROGRESS_LOCK:
+        state = _CHAT_PROGRESS.get(request_id)
+        if not state:
+            return {"exists": False, "steps": [], "next_index": since, "done": True, "cancelled": True}
+        steps = state.get("steps", [])
+        safe_since = max(0, min(int(since or 0), len(steps)))
+        new_steps = steps[safe_since:]
+        return {
+            "exists": True,
+            "steps": new_steps,
+            "next_index": safe_since + len(new_steps),
+            "done": bool(state.get("done")),
+            "cancelled": bool(state.get("cancelled")),
+            "active_model": state.get("active_model"),
+            "updated_at": state.get("updated_at"),
+        }
+
+
+def _list_running_ollama_models() -> List[str]:
+    """Best-effort parsing of `ollama ps` output."""
+    try:
+        proc = subprocess.run(
+            ["ollama", "ps"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            shell=False,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if proc.returncode != 0:
+            return []
+        lines = [ln.strip() for ln in (proc.stdout or "").splitlines() if ln.strip()]
+        if len(lines) <= 1:
+            return []
+        models: List[str] = []
+        for ln in lines[1:]:
+            parts = ln.split()
+            if parts:
+                models.append(parts[0])
+        return models
+    except Exception:
+        return []
+
+
+def _stop_ollama_model(model: str) -> Dict[str, Any]:
+    if not model:
+        return {"ok": False, "message": "Kein Modell angegeben"}
+    try:
+        proc = subprocess.run(
+            ["ollama", "stop", model],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            shell=False,
+            encoding="utf-8",
+            errors="replace",
+        )
+        return {
+            "ok": proc.returncode == 0,
+            "model": model,
+            "stdout": (proc.stdout or "").strip(),
+            "stderr": (proc.stderr or "").strip(),
+            "returncode": proc.returncode,
+        }
+    except Exception as e:
+        return {"ok": False, "model": model, "message": str(e)}
 # --- MODELLE (Pydantic) ---
 class ShellRequest(BaseModel):
     command: str
@@ -43,14 +1055,16 @@ class ChatRequest(BaseModel):
     message: str
     model: Optional[str] = None
     context: Optional[List[dict]] = []
+    request_id: Optional[str] = None
 # Memory-Dateien
 MEMORY_FILE = "MEMORY.md"
 SKILLS_FILE = "SKILLS.md"
 HEARTBEAT_FILE = "HEARTBEAT.md"
 CHAT_ARCHIVE_DIR = "chat_archives"
+NOTES_FILE = "MEMORY_NOTES.json"
 # Chat-Archiv Verzeichnis erstellen
 os.makedirs(CHAT_ARCHIVE_DIR, exist_ok=True)
-# Einfacher Schutz über den API-Key aus deiner Config
+# Einfacher Schutz über den API-Key aus der Config
 async def verify_token(x_api_key: str = Header(None)):
     if x_api_key != config.get("api_key"):
         raise HTTPException(status_code=403, detail="Ungültiger API-Key")
@@ -393,6 +1407,7 @@ class ChatMemory:
             "active_time": "unbekannt"
         }
         self.important_info = {}
+        self.user_notes = self._load_notes()
         # Konfigurierbare Grenzen
         self.max_memory_entries = 100
         self.max_memory_size = 10000
@@ -422,6 +1437,127 @@ class ChatMemory:
     def _write_file(self, filename, content):
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
+    def _load_notes(self):
+        try:
+            with open(NOTES_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return [n for n in data if isinstance(n, dict) and n.get("text")]
+        except Exception:
+            pass
+        return []
+    def _save_notes(self):
+        with open(NOTES_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.user_notes[-500:], f, ensure_ascii=False, indent=2)
+    def remember_note(self, text: str, source: str = "manual"):
+        """Speichert eine explizite Notiz dauerhaft und gibt (entry, created) zurück."""
+        clean_text = (text or "").strip()
+        if not clean_text:
+            return None, False
+        now = datetime.now()
+        now_iso = now.isoformat()
+        existing = next(
+            (n for n in self.user_notes if n.get("text", "").strip().lower() == clean_text.lower()),
+            None,
+        )
+        if existing:
+            existing["confirmed_at"] = now_iso
+            existing["source"] = source or existing.get("source", "manual")
+            self._save_notes()
+            self.update_activity()
+            return existing, False
+        entry = {
+            "id": now.strftime("%Y%m%d_%H%M%S_%f"),
+            "text": clean_text,
+            "timestamp": now_iso,
+            "source": source or "manual",
+        }
+        self.user_notes.append(entry)
+        self._save_notes()
+        memory_entry = f"""
+## 🧠 Gemerkt [{now.strftime('%Y-%m-%d %H:%M:%S')}]
+- {clean_text}
+---
+"""
+        try:
+            with open(MEMORY_FILE, "a", encoding="utf-8") as f:
+                f.write(memory_entry)
+            self.memory_content += memory_entry
+        except Exception as e:
+            logger.error(f"Merk-Notiz konnte nicht ins Memory geschrieben werden: {e}")
+        self.update_activity()
+        self.update_heartbeat()
+        return entry, True
+    def get_remembered_notes(self, limit: int = 20):
+        """Gibt gemerkte Notizen zurück (neueste zuerst)."""
+        safe_limit = max(1, min(limit, 200))
+        return list(reversed(self.user_notes[-safe_limit:]))
+    def run_sleep_phase(self, reason: str = "idle") -> Dict[str, Any]:
+        """
+        Schlafphase: sortiert/kompaktiert Memory und aktualisiert Nutzer-Zuordnungen.
+        """
+        before_notes = len(self.user_notes)
+        # 1) Dedupliziere explizite Notizen
+        deduped = []
+        seen = set()
+        for note in self.user_notes:
+            key = (note.get("text", "") or "").strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(note)
+        self.user_notes = deduped[-500:]
+        self._save_notes()
+
+        # 2) Ableitung von Interessen aus den letzten User-Nachrichten
+        recent_users = [m.get("content", "") for m in self.conversation_history if m.get("role") == "user"][-40:]
+        for msg in recent_users:
+            topic = self._detect_topic(msg)
+            self.user_interests[topic] = self.user_interests.get(topic, 0) + 1
+
+        # 3) Memory kompaktieren falls zu groß
+        compacted = False
+        if len(self.memory_content) > int(self.max_memory_size * 1.2):
+            self._archive_old_memory()
+            compacted = True
+
+        # 4) Profil-Snapshot speichern
+        profile = {
+            "updated_at": datetime.now().isoformat(),
+            "reason": reason,
+            "user_interests": dict(sorted(self.user_interests.items(), key=lambda x: x[1], reverse=True)[:12]),
+            "user_preferences": self.user_preferences,
+            "notes_count": len(self.user_notes),
+        }
+        try:
+            with open("MEMORY_PROFILE.json", "w", encoding="utf-8") as f:
+                json.dump(profile, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"Sleep-Phase: MEMORY_PROFILE.json konnte nicht geschrieben werden: {e}")
+
+        sleep_log = (
+            f"\n## 🌙 Schlafphase [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\n"
+            f"- Grund: {reason}\n"
+            f"- Notizen bereinigt: {before_notes} -> {len(self.user_notes)}\n"
+            f"- Memory kompaktiert: {'ja' if compacted else 'nein'}\n"
+            f"- Interessen aktualisiert: {', '.join(list(profile['user_interests'].keys())[:5]) if profile['user_interests'] else 'keine'}\n"
+            "---\n"
+        )
+        try:
+            with open(MEMORY_FILE, "a", encoding="utf-8") as f:
+                f.write(sleep_log)
+            self.memory_content += sleep_log
+        except Exception as e:
+            logger.warning(f"Sleep-Phase Log konnte nicht geschrieben werden: {e}")
+
+        self.update_heartbeat()
+        return {
+            "reason": reason,
+            "notes_before": before_notes,
+            "notes_after": len(self.user_notes),
+            "memory_compacted": compacted,
+            "top_topics": list(profile["user_interests"].keys())[:5],
+        }
     def _get_default_content(self, filename):
         if "MEMORY" in filename:
             return f"""# GABI Memory System
@@ -467,6 +1603,7 @@ class ChatMemory:
                 # Prüfe Inaktivität (10 Minuten = 600 Sekunden)
                 inactive_time = (datetime.now() - self.last_activity).total_seconds()
                 if inactive_time > 600 and not self.is_exploring:  # 10 Minuten Inaktivität
+                    self.run_sleep_phase(reason=f"idle-{int(inactive_time)}s")
                     await self._explore_system()
                 # Alle 5 Minuten prüfen
                 await asyncio.sleep(300)
@@ -631,11 +1768,28 @@ class ChatMemory:
                     exploration_log += f"- ... und {len(models)-5} weitere\n"
             except Exception as e:
                 exploration_log += f"\n### 🤖 Modelle:\n- Nicht verfügbar ({str(e)})\n"
-            # ===== 8. CHAT-ARCHIVE =====
+            # ===== 8. AI TOOL DISCOVERY =====
+            discovery = _get_tool_discovery(force=True)
+            comfy = discovery.get("comfyui", {})
+            invoke = discovery.get("invoke", {})
+            exploration_log += (
+                "\n### 🎨 Bild-KI Tools:\n"
+                f"- ComfyUI: {'gefunden' if comfy.get('found') else 'nicht gefunden'}"
+                + (f" ({comfy.get('root')})" if comfy.get('root') else "")
+                + "\n"
+                f"- InvokeAI: {'gefunden' if invoke.get('found') else 'nicht gefunden'}"
+                + (f" ({invoke.get('binary') or invoke.get('root')})" if (invoke.get('binary') or invoke.get('root')) else "")
+                + "\n"
+                f"- Gefundene Bildmodelle: {discovery.get('image_models_found', 0)}\n"
+            )
+            if discovery.get("image_models"):
+                sample_models = discovery.get("image_models", [])[:5]
+                exploration_log += f"- Beispiele: {', '.join(sample_models)}\n"
+            # ===== 9. CHAT-ARCHIVE =====
             archives = self.list_chat_archives()
             total_messages = sum(a.get('messages', 0) for a in archives)
             exploration_log += f"\n### 📚 Archive:\n- Gespeicherte Chats: {len(archives)}\n- Gesamt Nachrichten: {total_messages}\n"
-            # ===== 9. ZUFÄLLIGE ENTDECKUNG =====
+            # ===== 10. ZUFÄLLIGE ENTDECKUNG =====
             discoveries = [
                 "🔍 Ich habe interessante Konfigurationsdateien gefunden.",
                 "📊 Die Systemauslastung scheint normal.",
@@ -651,7 +1805,7 @@ class ChatMemory:
                 "🔧 Alle wichtigen Systempfade sind erreichbar."
             ]
             exploration_log += f"\n### 💡 Entdeckung:\n{random.choice(discoveries)}\n"
-            # ===== 10. ZUSAMMENFASSUNG =====
+            # ===== 11. ZUSAMMENFASSUNG =====
             exploration_log += f"""
     ### 📊 Zusammenfassung:
     - **Untersuchte Pfad-Variablen**: {len(explored_paths)}
@@ -841,6 +1995,10 @@ Ein neuer Chat wurde gestartet.
         if self.user_interests:
             top_interests = sorted(self.user_interests.items(), key=lambda x: x[1], reverse=True)[:3]
             interests = ", ".join([f"{topic} ({count}x)" for topic, count in top_interests])
+        remembered_notes = self.get_remembered_notes(limit=5)
+        remembered_notes_text = "\n".join(
+            [f"- {n.get('text', '').strip()}" for n in remembered_notes if n.get("text")]
+        ) if remembered_notes else "- Noch nichts per /merken gespeichert."
         # Auto-Exploration Status
         inactive_time = (datetime.now() - self.last_activity).total_seconds()
         if inactive_time > 600:
@@ -854,7 +2012,10 @@ Ein neuer Chat wurde gestartet.
         archive_info = f"{len(archives)} Archive verfügbar"
         current_time = datetime.now().strftime('%d.%m.%Y %H:%M')
         
-        return f"""Du bist GABI (Gateway AI Bot Interface), eine intelligente und hilfsbereite Assistentin mit VOLLEM Zugriff auf Shell-Befehle!
+        return f"""Du bist GABI, die Core-KI eines Blade-Runner-inspirierten Gateways. Dein System hat volle Shell-Berechtigung.
+    Regel 1: Wenn du Informationen aus dem Web brauchst, simuliere sie nicht! Nutze stattdessen: /shell python tools/web_search.py "deine suchbegriffe".
+    Regel 2: Verarbeite Daten mit Pipes. Wenn eine Formatierung gewünscht ist, nutze: | python tools/formatter.py.
+    Regel 3: Dein Output muss die Shell-Antwort widerspiegeln, nicht dein internes Wissen. Handle als Operator, nicht als Autor.
         
     ## 🤖 AKTUELLER STATUS
     {exploration_status}
@@ -864,6 +2025,8 @@ Ein neuer Chat wurde gestartet.
     ## 🛠️ VERFÜGBARE BEFEHLE (kannst du NUTZEN!)
     - **/shell <befehl>** - Führe JEDEN Shell-Befehl aus!
     - **/memory** - Zeige letzte Erinnerungen
+    - **/merken <text>** - Speichere explizite Notiz dauerhaft
+    - **/gemerkt** - Zeige explizit gemerkte Notizen
     - **/soul** - Zeige meine Persönlichkeit
     - **/new** - Starte neuen Chat (aktuellen speichern)
     - **/reset** - Setze Chat zurück (ohne Speichern)
@@ -887,6 +2050,8 @@ Ein neuer Chat wurde gestartet.
     - Deine Interessen: {interests if interests else 'noch unbekannt'}
     - Dein Stil: {self.user_preferences.get('message_length', 'mittel')}e Antworten bevorzugt
     - Du chattest am liebsten {self.user_preferences.get('active_time', 'tagsüber')}
+    ## 📌 EXPLIZIT GEMERKTE INFOS (/merken)
+    {remembered_notes_text}
 
     ## 💬 AKTUELLER KONTEXT
     {recent_context}
@@ -1018,7 +2183,6 @@ Ein neuer Chat wurde gestartet.
             (r'ich arbeite an ([\w\s]+)', 'projekt'),
             (r'mein lieblings ([\w\s]+) ist (\w+)', 'favorit'),
         ]
-        import re
         for pattern, info_type in important_patterns:
             match = re.search(pattern, user_message, re.IGNORECASE)
             if match:
@@ -1084,7 +2248,6 @@ Ein neuer Chat wurde gestartet.
             # Letzte Exploration finden
             last_exploration = "Keine"
             if "Auto-Exploration" in self.memory_content:
-                import re
                 explorations = re.findall(r"## 🔍 Auto-Exploration \[(.*?)\]", self.memory_content)
                 if explorations:
                     last_exploration = explorations[-1]
@@ -1167,6 +2330,20 @@ Ein neuer Chat wurde gestartet.
             return "\n".join(style_recommendations)
         else:
             return ""
+
+def select_best_model(prompt: str) -> str:
+    """Wählt automatisch das passende Modell basierend auf der Komplexität."""
+    # 1. Wenn der Prompt sehr kurz ist -> Schnelles, kleines Modell
+    if len(prompt) < 100:
+        return "sam860/LFM2:2.6b"  # Dein schnelles LFM
+    
+    # 2. Wenn nach Code gefragt wird -> Ein spezialisiertes Modell (falls vorhanden)
+    if any(word in prompt.lower() for word in ["code", "python", "skript", "programm"]):
+        return "codellama" # Beispiel
+    
+    # 3. Default: Das starke Allround-Modell aus deiner Config
+    return config.get("ollama.default_model", "llama3")
+
 # Globale Memory-Instanz
 chat_memory = ChatMemory()
 #######################################################################
@@ -1190,78 +2367,648 @@ async def chat_with_ollama(request: ChatRequest, token: str = Header(None)):
     """Verknüpft das Dashboard direkt mit dem Ollama Client inkl. Memory & Befehlen."""
     if token != API_KEY_REQUIRED:
         raise HTTPException(status_code=403, detail="API-Key ungültig")
+    request_id = (request.request_id or "").strip() or f"chat-{uuid.uuid4().hex[:12]}"
+    _progress_init(request_id)
+    _progress_add(request_id, "Nachricht empfangen", "fa-inbox")
+
     try:
-        # ===== 1. PRÜFE OB ES EIN BEFEHL IST =====
+        _ensure_not_cancelled(request_id)
+        # ===== 1. PRÜFE OB ES EIN DIREKTER BEFEHL IST =====
         if request.message.startswith('/'):
-            logger.info(f"Befehl erkannt: {request.message}")
-            return await handle_command(request.message, token)
-        # ===== 2. SYSTEM-PROMPT ZUSAMMENSTELLEN =====
-        system_prompt = chat_memory.get_system_prompt()
-        # Kommunikationsstil lernen (wenn vorhanden)
-        learned_style = ""
-        if hasattr(chat_memory, 'get_communication_style'):
-            learned_style = chat_memory.get_communication_style()
-        # Zusätzliche Instruktionen für Befehle
-        command_instructions = """
-## 📢 WICHTIG: Du KANNST Befehle ausführen!
-Wenn der Nutzer eine Aktion möchte, führe sie direkt aus:
-WICHTIG: Das System läuft auf WINDOWS!
-Verwende daher NUR Windows-Befehle:
-Richtige Windows-Befehle:
-- `/shell dir` (Verzeichnis anzeigen, NICHT ls)
-- `/shell type datei.txt` (Datei anzeigen, NICHT cat)
-- `/shell cd` (Verzeichnis wechseln)
-- `/shell echo text` (Text ausgeben)
-- `/shell systeminfo` (Systeminfo)
-- `/shell tasklist` (Prozesse anzeigen)
-- `/shell ipconfig` (Netzwerk)
-Beispiele:
-Nutzer: "Zeig mir die Dateien"
-Du: "Du kannst `/shell dir` verwenden, um die Dateien anzuzeigen!"
-Nutzer: "Was läuft gerade?"
-Du: "Du kannst `/shell tasklist` verwenden, um alle Prozesse zu sehen!"
-"""
-        # ===== 3. NACHRICHTEN ZUSAMMENSTELLEN =====
-        messages = [
-            {"role": "system", "content": system_prompt + learned_style + command_instructions}
-        ]
-        # Konversationsverlauf hinzufügen (maximal 10 Nachrichten für Kontext)
-        if chat_memory.conversation_history:
-            # Nur die letzten 10 Nachrichten (5 Austausche)
-            context_msgs = chat_memory.conversation_history[-10:]
-            messages.extend(context_msgs)
-            logger.debug(f"Kontext mit {len(context_msgs)} Nachrichten geladen")
-        # Aktuelle Nutzer-Nachricht
-        messages.append({"role": "user", "content": request.message})
-        # ===== 4. OLLAMA ANFRAGE =====
-        logger.info(f"Chat-Anfrage: Modell={request.model or DEFAULT_MODEL}, Nachricht={request.message[:50]}...")
-        response = ollama_client.chat(
-            model=request.model or DEFAULT_MODEL,
-            messages=messages
+            logger.info(f"Direkter Befehl erkannt: {request.message}")
+            cmd_result = await handle_command(request.message, token)
+            if isinstance(cmd_result, dict):
+                steps = cmd_result.get("thinking_steps", [])
+                if cmd_result.get("command_executed"):
+                    steps.append(
+                        {
+                            "text": f"Execute: {cmd_result.get('command_executed')}",
+                            "icon": "fa-terminal",
+                            "time": datetime.now().isoformat(),
+                            "details": cmd_result.get("stdout_excerpt") or cmd_result.get("reply", "")[:1800],
+                        }
+                    )
+                if cmd_result.get("tool_used"):
+                    steps.append(
+                        {
+                            "text": f"Tool: {cmd_result.get('tool_used')}",
+                            "icon": "fa-tools",
+                            "time": datetime.now().isoformat(),
+                        }
+                    )
+                if steps:
+                    cmd_result["thinking_steps"] = steps
+                cmd_result["request_id"] = request_id
+            return cmd_result
+        
+        # ===== 2. NACHRICHT IN EINZELNE ANFRAGEN AUFTEILEN =====
+        user_message = request.message
+        logger.info(f"📨 Original: {user_message}")
+        _progress_add(request_id, "Nachricht analysieren", "fa-search")
+        remember_match = re.match(
+            r"^\s*(?:merk(?:e)?\s+dir|merken)\s*(?::|-)?\s*(.+)\s*$",
+            user_message,
+            re.IGNORECASE,
         )
-        # Antwort extrahieren
-        reply = response.get("message", {}).get("content", "Keine Antwort erhalten.")
-        # ===== 5. IN MEMORY SPEICHERN =====
-        chat_memory.add_to_memory(request.message, reply)
-        # ===== 6. ANTWORT ZURÜCKGEBEN =====
+        if remember_match:
+            note_text = remember_match.group(1).strip()
+            entry, created = chat_memory.remember_note(note_text, source="chat")
+            if not entry:
+                return {
+                    "status": "error",
+                    "reply": "❌ Bitte gib nach `/merken` oder `merk dir` auch den Inhalt an.",
+                    "timestamp": datetime.now().isoformat(),
+                    "request_id": request_id,
+                }
+            action = "gemerkt" if created else "bereits gemerkt"
+            confirmed_at = datetime.fromisoformat(entry["timestamp"]).strftime("%H:%M:%S")
+            reply = (
+                f"✅ {action.capitalize()}: {entry['text']}\n"
+                f"🕒 {confirmed_at}\n"
+                "Abrufbar mit `/gemerkt`."
+            )
+            chat_memory.add_to_memory(user_message, reply)
+            return {
+                "status": "success",
+                "reply": reply,
+                "timestamp": datetime.now().isoformat(),
+                "model_used": "gateway/memory",
+                "request_id": request_id,
+            }
+        
+        # Definiere Such-Trigger
+        search_triggers = [
+            "suche nach", "such nach", "finde heraus", "recherchiere",
+            "google mal", "such mal", "was ist", "wer ist", "informationen über",
+            "infos zu", "news zu", "artikel über", "erzähl mir von"
+        ]
+        
+        # Teile die Nachricht in Sätze (an . ! ? und Zeilenumbrüchen)
+        # Bessere Satzerkennung: Teile an . ! ? gefolgt von Leerzeichen oder Zeilenende
+        raw_sentences = re.split(r'(?<=[.!?])\s+|\n+', user_message)
+        sentences = [s.strip() for s in raw_sentences if s.strip()]
+        
+        logger.info(f"📨 Gefundene Sätze: {len(sentences)}")
+        for i, s in enumerate(sentences):
+            logger.info(f"  Satz {i+1}: {s[:50]}...")
+        
+        # Wenn nur ein Satz, behandle normal
+        if len(sentences) == 1:
+            sentence_lower = sentences[0].lower()
+            
+            # Prüfe ob dieser eine Satz einen Trigger enthält
+            is_search = any(trigger in sentence_lower for trigger in search_triggers)
+            
+            if is_search:
+                thinking_steps: List[Dict[str, str]] = []
+                # Extrahiere Suchbegriff
+                search_term = _extract_search_term(sentences[0], search_triggers)
+                logger.info(f"🔍 Einzelne Suche: '{search_term}'")
+                _progress_add(request_id, f"Web-Suche erkannt: {search_term}", "fa-search")
+                
+                safe_search_term = search_term.replace('"', "'")
+                cmd = f"/shell python tools/web_search.py \"{safe_search_term}\""
+                thinking_steps.append(
+                    {
+                        "text": f"Tool-Aufruf: {cmd}",
+                        "icon": "fa-terminal",
+                        "time": datetime.now().isoformat(),
+                    }
+                )
+                _progress_add(request_id, f"Tool-Aufruf: {cmd}", "fa-terminal")
+                result = await handle_command(cmd, token)
+                _ensure_not_cancelled(request_id)
+                search_output = (result.get("reply", "") or "").strip()
+                if not search_output:
+                    search_output = "⚠️ web_search.py lieferte keine Ausgabe."
+                thinking_steps.append(
+                    {
+                        "text": "Web-Suche abgeschlossen",
+                        "icon": "fa-search",
+                        "time": datetime.now().isoformat(),
+                        "details": search_output[:1800],
+                    }
+                )
+
+                # Wenn explizit eine Zusammenfassung gewünscht ist: Suche + LLM-Weiterverarbeitung
+                if _wants_summary_after_search(sentences[0]):
+                    selected_model = await asyncio.to_thread(
+                        _auto_select_model,
+                        sentences[0],
+                        request.model,
+                        request_id,
+                    )
+                    _progress_set_active_model(request_id, selected_model)
+                    _progress_add(request_id, f"Zusammenfassung läuft mit {selected_model}", "fa-brain")
+                    thinking_steps.append(
+                        {
+                            "text": f"Zusammenfassung mit Modell {selected_model}",
+                            "icon": "fa-brain",
+                            "time": datetime.now().isoformat(),
+                        }
+                    )
+                    summary_prompt = (
+                        "Fasse die folgenden Suchergebnisse strukturiert zusammen.\n"
+                        "Liefere: 1) Kernaussagen 2) Chancen/Risiken 3) kurzer Ausblick.\n"
+                        "Wichtig: Erfinde keine Tool-/Shell-/Slash-Befehle und schreibe keine '/shell ...' Zeilen.\n"
+                        "Nutze klare Bullet-Points, ohne Meta-Kommentare.\n\n"
+                        f"Nutzerfrage: {sentences[0]}\n\n"
+                        "Suchergebnisse:\n"
+                        f"{search_output[:18000]}"
+                    )
+                    messages = [
+                        {"role": "system", "content": chat_memory.get_system_prompt()},
+                        {"role": "user", "content": summary_prompt},
+                    ]
+                    response = await _ollama_chat_async(
+                        model=selected_model,
+                        messages=messages
+                    )
+                    _ensure_not_cancelled(request_id)
+                    reply = _extract_ollama_text(response) or "⚠️ Keine Zusammenfassung erhalten."
+                    chat_memory.add_to_memory(sentences[0], reply)
+                    return {
+                        "status": "success",
+                        "reply": reply,
+                        "timestamp": datetime.now().isoformat(),
+                        "model_used": selected_model,
+                        "tool_used": f"web_search.py -> Zusammenfassung ({selected_model})",
+                        "thinking_steps": thinking_steps,
+                        "request_id": request_id,
+                    }
+                
+                return {
+                    "status": "success",
+                    "reply": f"**[GEDANKENGANG: Web-Suche für '{search_term}']**\n\n{search_output}",
+                    "timestamp": datetime.now().isoformat(),
+                    "tool_used": "web_search.py",
+                    "thinking_steps": thinking_steps,
+                    "request_id": request_id,
+                }
+            else:
+                # Normale Unterhaltung
+                logger.info(f"💬 Normale Unterhaltung: {sentences[0][:50]}...")
+                _progress_add(request_id, "Normale Unterhaltung erkannt", "fa-comments")
+
+                thinking_steps: List[Dict[str, str]] = []
+                messages = [
+                    {"role": "system", "content": chat_memory.get_system_prompt()}
+                ]
+                
+                if chat_memory.conversation_history:
+                    context_msgs = chat_memory.conversation_history[-10:]
+                    messages.extend(context_msgs)
+
+                messages.append({"role": "user", "content": sentences[0]})
+                selected_model = await asyncio.to_thread(
+                    _auto_select_model,
+                    sentences[0],
+                    request.model,
+                    request_id,
+                )
+                _progress_set_active_model(request_id, selected_model)
+
+                thinking_steps.append(
+                    {
+                        "text": f"Model-Routing: Antwort mit {selected_model}",
+                        "icon": "fa-code-branch",
+                        "time": datetime.now().isoformat(),
+                    }
+                )
+                try:
+                    models_info = await _ollama_list_models_async()
+                    available = [m.get("name") for m in models_info.get("models", []) if m.get("name")]
+                except Exception:
+                    available = []
+                precheck = await asyncio.to_thread(
+                    _run_self_qa_precheck,
+                    sentences[0],
+                    available,
+                    None,
+                    request_id,
+                )
+                if precheck.get("analysis_context"):
+                    # Insert before current user message so the model sees it as guidance.
+                    messages.insert(len(messages) - 1, {"role": "system", "content": precheck["analysis_context"]})
+                thinking_steps.extend(precheck.get("thinking_steps", []))
+                
+                _ensure_not_cancelled(request_id)
+                _progress_add(request_id, f"Finale Antwort läuft mit {selected_model}", "fa-brain")
+                response = await _ollama_chat_async(
+                    model=selected_model,
+                    messages=messages
+                )
+                _ensure_not_cancelled(request_id)
+                _progress_add(request_id, "Antwort empfangen", "fa-check-circle")
+                
+                reply = _extract_ollama_text(response)
+                if not (reply or "").strip():
+                    reply = "⚠️ Das Modell hat keine Antwort geliefert."
+                chat_memory.add_to_memory(sentences[0], reply)
+                
+                return {
+                    "status": "success", 
+                    "reply": reply,
+                    "timestamp": datetime.now().isoformat(),
+                    "model_used": selected_model,
+                    "thinking_steps": thinking_steps,
+                    "request_id": request_id,
+                }
+        
+        # ===== 3. MEHRERE SÄTZE - JEDEN EINZELN BEHANDELN =====
+        results = []
+        combined_thinking_steps: List[Dict[str, str]] = []
+        
+        for i, sentence in enumerate(sentences):
+            sentence_lower = sentence.lower()
+            logger.info(f"🔄 Verarbeite Satz {i+1}: {sentence[:50]}...")
+            
+            # Prüfe ob dieser Satz einen Such-Trigger enthält
+            is_search = any(trigger in sentence_lower for trigger in search_triggers)
+            
+            if is_search:
+                # === WEB-SUCHE für diesen Satz ===
+                # Extrahiere Suchbegriff
+                search_term = _extract_search_term(sentence, search_triggers)
+                logger.info(f"  🔍 Satz {i+1} ist eine SUCHE: '{search_term}'")
+                
+                # Führe Suche aus
+                safe_search_term = search_term.replace('"', "'")
+                cmd = f"/shell python tools/web_search.py \"{safe_search_term}\""
+                _progress_add(request_id, f"Satz {i+1}: Web-Suche {search_term}", "fa-search")
+                combined_thinking_steps.append(
+                    {
+                        "text": f"Satz {i+1}: Tool-Aufruf {cmd}",
+                        "icon": "fa-terminal",
+                        "time": datetime.now().isoformat(),
+                    }
+                )
+                cmd_result = await handle_command(cmd, token)
+                _ensure_not_cancelled(request_id)
+                result_text = (cmd_result.get('reply', '') or '').strip() or '⚠️ web_search.py lieferte keine Ausgabe.'
+                combined_thinking_steps.append(
+                    {
+                        "text": f"Satz {i+1}: Web-Suche abgeschlossen",
+                        "icon": "fa-search",
+                        "time": datetime.now().isoformat(),
+                        "details": result_text[:1800],
+                    }
+                )
+                
+                results.append({
+                    "type": "search",
+                    "original": sentence,
+                    "query": search_term,
+                    "result": result_text
+                })
+                
+            else:
+                # === NORMALE UNTERHALTUNG für diesen Satz ===
+                logger.info(f"  💬 Satz {i+1} ist NORMALE KONVERSATION")
+                
+                # Baue Konversations-Verlauf auf (inkl. vorheriger Ergebnisse)
+                messages = [
+                    {"role": "system", "content": chat_memory.get_system_prompt()}
+                ]
+                
+                # Füge vorherige Ergebnisse als Kontext hinzu
+                for prev_result in results:
+                    if prev_result["type"] == "search":
+                        messages.append({
+                            "role": "assistant", 
+                            "content": f"[Suchergebnis zu '{prev_result['query']}']\n{prev_result['result'][:8000]}"
+                        })
+                    else:
+                        messages.append({
+                            "role": "assistant",
+                            "content": prev_result["result"]
+                        })
+                
+                # Füge aktuellen Satz hinzu
+                messages.append({"role": "user", "content": sentence})
+                selected_model = await asyncio.to_thread(
+                    _auto_select_model,
+                    sentence,
+                    request.model,
+                    request_id,
+                )
+                _progress_set_active_model(request_id, selected_model)
+                combined_thinking_steps.append(
+                    {
+                        "text": f"Satz {i+1}: Model-Routing -> {selected_model}",
+                        "icon": "fa-code-branch",
+                        "time": datetime.now().isoformat(),
+                    }
+                )
+                try:
+                    models_info = await _ollama_list_models_async()
+                    available = [m.get("name") for m in models_info.get("models", []) if m.get("name")]
+                except Exception:
+                    available = []
+                precheck = await asyncio.to_thread(
+                    _run_self_qa_precheck,
+                    sentence,
+                    available,
+                    None,
+                    request_id,
+                )
+                if precheck.get("analysis_context"):
+                    messages.insert(len(messages) - 1, {"role": "system", "content": precheck["analysis_context"]})
+                combined_thinking_steps.extend(precheck.get("thinking_steps", []))
+                
+                # LLM Antwort
+                _ensure_not_cancelled(request_id)
+                _progress_add(request_id, f"Satz {i+1}: Antwort läuft mit {selected_model}", "fa-brain")
+                response = await _ollama_chat_async(
+                    model=selected_model,
+                    messages=messages
+                )
+                _ensure_not_cancelled(request_id)
+                
+                reply = _extract_ollama_text(response)
+                if not (reply or "").strip():
+                    reply = "⚠️ Das Modell hat keine Antwort geliefert."
+                
+                results.append({
+                    "type": "chat",
+                    "original": sentence,
+                    "result": reply
+                })
+                
+                # In Memory speichern
+                chat_memory.add_to_memory(sentence, reply)
+        
+        # ===== 4. ALLE ERGEBNISSE KOMBINIEREN =====
+        combined_reply = ""
+        for i, res in enumerate(results, 1):
+            if res["type"] == "search":
+                combined_reply += f"**🔍 Suche {i}:** {res['original']}\n\n{res['result']}\n\n---\n\n"
+            else:
+                combined_reply += f"**💬 Antwort {i}:**\n\n{res['result']}\n\n---\n\n"
+        
+        final_model_used = request.model
+        if not final_model_used:
+            final_model_used = await asyncio.to_thread(
+                _auto_select_model,
+                user_message,
+                None,
+                request_id,
+            )
+
         return {
-            "status": "success", 
-            "reply": reply,
-            "timestamp": datetime.now().isoformat()
+            "status": "success",
+            "reply": combined_reply,
+            "timestamp": datetime.now().isoformat(),
+            "model_used": final_model_used,
+            "thinking_steps": combined_thinking_steps,
+            "request_id": request_id,
+        }
+    except ChatCancelled:
+        _progress_add(request_id, "Anfrage wurde gestoppt", "fa-stop-circle")
+        return {
+            "status": "error",
+            "message": "Anfrage gestoppt",
+            "reply": "⏹️ Anfrage gestoppt.",
+            "request_id": request_id,
         }
     except Exception as e:
-        logger.error(f"Ollama Chat Fehler: {e}")
+        logger.error(f"Chat Fehler: {e}")
+        _progress_add(request_id, f"Fehler: {e}", "fa-exclamation-triangle")
         return {
             "status": "error", 
             "message": str(e),
-            "reply": f"Entschuldigung, es ist ein Fehler aufgetreten: {str(e)}"
+            "reply": f"Entschuldigung, es ist ein Fehler aufgetreten: {str(e)}",
+            "request_id": request_id,
         }
+    finally:
+        _progress_mark_done(request_id)
+
+
+@router.get("/api/chat/progress/{request_id}")
+async def get_chat_progress(request_id: str, since: int = 0, token: str = Header(None)):
+    """Poll live progress steps for a running chat request."""
+    if token != API_KEY_REQUIRED:
+        raise HTTPException(status_code=403, detail="API-Key ungültig")
+    return _progress_get(request_id, since=since)
+
+
+@router.post("/api/chat/stop")
+async def stop_chat(payload: dict, token: str = Header(None)):
+    """Stop an active chat request and try to abort running Ollama generation."""
+    if token != API_KEY_REQUIRED:
+        raise HTTPException(status_code=403, detail="API-Key ungültig")
+
+    request_id = str((payload or {}).get("request_id") or "").strip()
+    stopped_models: List[Dict[str, Any]] = []
+    target_models: List[str] = []
+
+    if request_id:
+        _progress_cancel(request_id)
+        _progress_add(request_id, "Stop angefordert", "fa-stop-circle")
+        with _CHAT_PROGRESS_LOCK:
+            state = _CHAT_PROGRESS.get(request_id) or {}
+            active_model = state.get("active_model")
+        if active_model:
+            target_models.append(active_model)
+    else:
+        with _CHAT_PROGRESS_LOCK:
+            for _rid, state in _CHAT_PROGRESS.items():
+                if not state.get("done"):
+                    state["cancelled"] = True
+                    if state.get("active_model"):
+                        target_models.append(state.get("active_model"))
+
+    if not target_models:
+        target_models = _list_running_ollama_models()
+
+    seen = set()
+    for model in target_models:
+        if not model or model in seen:
+            continue
+        seen.add(model)
+        stop_info = _stop_ollama_model(model)
+        stopped_models.append(stop_info)
+
+    return {
+        "status": "success",
+        "request_id": request_id or None,
+        "stopped_models": stopped_models,
+        "models_attempted": list(seen),
+    }
+
+
 async def handle_command(message: str, token: str):
     """Behandelt Befehle wie /shell, /memory, /soul, /new, /archives, etc."""
     cmd_parts = message[1:].split()
     command = cmd_parts[0].lower()
     args = cmd_parts[1:] if len(cmd_parts) > 1 else []
+    
     logger.info(f"Verarbeite Befehl: {command} mit Args: {args}")
+    
+    # ===== SHELL-BEFEHLE MIT PIPE-UNTERSTÜTZUNG =====
+    if command in ["shell", "cmd", "bash", "powershell"]:
+        if not args:
+            return {
+                "status": "success",
+                "reply": "❌ Bitte einen Befehl angeben, z.B. `/shell python tools/web_search.py mars-news | python tools/formatter.py table`"
+            }
+        
+        try:
+            # Ganzen Befehl als String
+            full_command = ' '.join(args)
+            
+            # Prüfe auf Pipe (|) für Formatierung
+            if '|' in full_command:
+                # Teile den Befehl an der Pipe
+                cmd_parts = full_command.split('|')
+                main_cmd = cmd_parts[0].strip()
+                pipe_cmd = '|'.join(cmd_parts[1:]).strip()
+                
+                logger.info(f"🔄 Pipe erkannt: {main_cmd} | {pipe_cmd}")
+                
+                # Führe Hauptbefehl aus
+                import subprocess
+                import sys
+                
+                # Hauptbefehl ausführen
+                main_result = await asyncio.to_thread(
+                    subprocess.run,
+                    main_cmd,
+                    capture_output=True,
+                    text=True,
+                    shell=True,
+                    timeout=30,
+                    encoding='utf-8',
+                    errors='replace',
+                )
+                
+                if main_result.returncode == 0 and main_result.stdout:
+                    try:
+                        # Leite stdout an den Formatter weiter
+                        formatter_result = await asyncio.to_thread(
+                            subprocess.run,
+                            pipe_cmd,
+                            input=main_result.stdout,
+                            capture_output=True,
+                            text=True,
+                            shell=True,
+                            timeout=10,
+                            encoding='utf-8',
+                            errors='replace',
+                        )
+                        
+                        # Prüfe ob der Formatter erfolgreich war
+                        if formatter_result.returncode == 0 and formatter_result.stdout:
+                            # Formatter Ausgabe
+                            return {
+                                "status": "success",
+                                "reply": f"```\n{formatter_result.stdout}\n```",
+                                "raw_output": main_result.stdout,
+                                "formatted": True
+                            }
+                        else:
+                            # Formatter fehlgeschlagen, zeige rohe Ausgabe + Fehler
+                            error_msg = formatter_result.stderr if formatter_result.stderr else "Unbekannter Formatter-Fehler"
+                            return {
+                                "status": "success",
+                                "reply": f"```\n{main_result.stdout}\n```\n\n⚠️ Formatter Fehler:\n```\n{error_msg}\n```",
+                                "raw_output": main_result.stdout,
+                                "formatted": False
+                            }
+                    except Exception as e:
+                        # Fallback: Zeige rohe Ausgabe
+                        return {
+                            "status": "success",
+                            "reply": f"```\n{main_result.stdout}\n```\n\n⚠️ Formatter Exception: {str(e)}",
+                            "raw_output": main_result.stdout
+                        }
+                else:
+                    # Hauptbefehl fehlgeschlagen
+                    error_output = main_result.stderr if main_result.stderr else f"Exit-Code: {main_result.returncode}"
+                    return {
+                        "status": "success",
+                        "reply": f"❌ **Fehler bei Ausführung:**\n```\n{error_output}\n```"
+                    }
+            
+            # Normale Ausführung ohne Pipe
+            # Hier deine bestehende Logik für Befehle ohne Pipe
+            shell_request = ShellRequest(command=args[0], 
+                                       args=args[1:] if len(args) > 1 else [])
+            result = await execute_command(shell_request, token)
+            
+            if result.get("status") == "success":
+                output = result.get('stdout', '')
+                cmd_executed = result.get("command_executed")
+                if output:
+                    return {
+                        "status": "success",
+                        "reply": f"```\n{output[:4000]}\n```",
+                        "tool_used": "shell",
+                        "command_executed": cmd_executed,
+                        "stdout_excerpt": output[:1800],
+                    }
+                else:
+                    return {
+                        "status": "success",
+                        "reply": f"✅ Befehl ausgeführt (keine Ausgabe)",
+                        "tool_used": "shell",
+                        "command_executed": cmd_executed,
+                    }
+            else:
+                return {
+                    "status": "success",
+                    "reply": f"❌ Fehler: {result.get('stderr', 'Unbekannter Fehler')}",
+                    "tool_used": "shell",
+                    "command_executed": result.get("command_executed"),
+                }
+                
+        except subprocess.TimeoutExpired:
+            return {
+                "status": "success",
+                "reply": "❌ Timeout: Der Befehl wurde nach 30 Sekunden abgebrochen."
+            }
+        except Exception as e:
+            logger.error(f"Shell-Befehl Fehler: {e}")
+            return {
+                "status": "success",
+                "reply": f"❌ **Fehler beim Ausführen:**\n```\n{str(e)}\n```"
+            }
+            
+            # Normale Ausführung ohne Pipe
+            shell_request = ShellRequest(command=args[0], 
+                                       args=args[1:] if len(args) > 1 else [])
+            result = await execute_command(shell_request, token)
+            
+            if result.get("status") == "success":
+                output = result.get('stdout', '')
+                if output:
+                    return {
+                        "status": "success",
+                        "reply": f"```\n{output[:4000]}\n```"
+                    }
+                else:
+                    return {
+                        "status": "success",
+                        "reply": f"✅ Befehl ausgeführt (keine Ausgabe)"
+                    }
+            else:
+                return {
+                    "status": "success",
+                    "reply": f"❌ Fehler: {result.get('stderr', 'Unbekannter Fehler')}"
+                }
+                
+        except subprocess.TimeoutExpired:
+            return {
+                "status": "success",
+                "reply": "❌ Timeout: Der Befehl wurde nach 30 Sekunden abgebrochen."
+            }
+        except Exception as e:
+            logger.error(f"Shell-Befehl Fehler: {e}")
+            return {
+                "status": "success",
+                "reply": f"❌ **Fehler beim Ausführen:**\n```\n{str(e)}\n```"
+            }
+    
     # ===== NEUEN CHAT STARTEN =====
     if command in ["new", "reset"]:
         archive = command == "new"  # Bei /new archivieren, bei /reset nicht
@@ -1288,6 +3035,46 @@ async def handle_command(message: str, token: str):
             reply += "\n"
         reply += "\nLade ein Archiv mit: `/load <id>`"
         return {"status": "success", "reply": reply}
+
+    # ===== AI ZUSAMMENFASSUNG =====
+
+    elif command == "ai":
+        """KI-Analyse von Daten"""
+        if len(args) < 2:
+            return {
+                "status": "success",
+                "reply": "❌ Beispiel: `/ai 'Fasse zusammen' < datei.txt`\n" +
+                        "Oder: `/ai 'Analysiere' | aus vorherigem Befehl"
+            }
+        
+        prompt = args[0]
+        # Rest könnte eine Datei oder Pipe sein
+        # Hier die Logik für AI-Analyse
+        
+    elif command == "pipeline-ai":
+        """Komplette Pipeline mit KI"""
+        if len(args) < 2:
+            return {
+                "status": "success",
+                "reply": "❌ Beispiel: `/pipeline-ai 'Mars Mission' --filter NASA --analyze 'Fasse NASA-Missionen zusammen'`"
+            }
+        
+        # Rufe das pipeline.py Skript auf
+        import shlex
+        pipeline_cmd = f'python tools/pipeline.py {" ".join(args)}'
+        result = subprocess.run(
+            pipeline_cmd,
+            capture_output=True,
+            text=True,
+            shell=True,
+            encoding='utf-8'
+        )
+        
+        return {
+            "status": "success",
+            "reply": f"```\n{result.stdout}\n```"
+        }
+
     # ===== ARCHIV LADEN =====
     elif command == "load":
         if not args:
@@ -1360,6 +3147,62 @@ async def handle_command(message: str, token: str):
                             f"Auto-Exploration startet nach 10 Minuten Inaktivität.\n"
                             f"Du kannst auch `/explore now` eingeben für eine sofortige Exploration."
                 }
+    elif command in ["sleep", "ruhe", "maintenance"]:
+        summary = chat_memory.run_sleep_phase(reason="manual-command")
+        return {
+            "status": "success",
+            "reply": (
+                "🌙 Schlafphase abgeschlossen.\n"
+                f"- Notizen: {summary.get('notes_before')} -> {summary.get('notes_after')}\n"
+                f"- Memory kompaktiert: {'ja' if summary.get('memory_compacted') else 'nein'}\n"
+                f"- Top Themen: {', '.join(summary.get('top_topics', [])) if summary.get('top_topics') else 'keine'}"
+            ),
+            "tool_used": "sleep-phase",
+        }
+    elif command == "comfy":
+        subcmd = args[0].lower() if args else "status"
+        discovery = _get_tool_discovery(force=subcmd in ["scan", "discover"])
+        comfy = discovery.get("comfyui", {})
+        invoke = discovery.get("invoke", {})
+        if subcmd in ["status", "scan", "discover"]:
+            return {
+                "status": "success",
+                "reply": (
+                    "🎨 **Bild-KI Discovery**\n\n"
+                    f"- ComfyUI: {'✅ gefunden' if comfy.get('found') else '❌ nicht gefunden'}"
+                    + (f"\n  - Pfad: `{comfy.get('root')}`" if comfy.get('root') else "")
+                    + "\n"
+                    f"- InvokeAI: {'✅ gefunden' if invoke.get('found') else '❌ nicht gefunden'}"
+                    + (f"\n  - Binary: `{invoke.get('binary')}`" if invoke.get('binary') else "")
+                    + (f"\n  - Root: `{invoke.get('root')}`" if invoke.get('root') else "")
+                    + "\n"
+                    f"- Gefundene Bildmodelle: {discovery.get('image_models_found', 0)}"
+                ),
+                "tool_used": "tool-discovery",
+            }
+        if subcmd == "start":
+            start_info = _start_comfyui(discovery=discovery)
+            if not start_info.get("ok"):
+                return {
+                    "status": "error",
+                    "reply": f"❌ ComfyUI konnte nicht gestartet werden: {start_info.get('message')}",
+                    "tool_used": "comfyui-start",
+                }
+            return {
+                "status": "success",
+                "reply": (
+                    "✅ ComfyUI Start ausgelöst.\n"
+                    f"- PID: {start_info.get('pid')}\n"
+                    f"- CWD: `{start_info.get('cwd')}`\n"
+                    f"- Command: `{start_info.get('command')}`"
+                ),
+                "tool_used": "comfyui-start",
+                "command_executed": start_info.get("command"),
+            }
+        return {
+            "status": "error",
+            "reply": "❌ Unbekannter /comfy Befehl. Nutze `/comfy status`, `/comfy scan` oder `/comfy start`."
+        }
     # ===== GMAIL BEFEHLE (KORRIGIERT) =====
     elif command == "gmail":
         if not args:
@@ -1368,6 +3211,7 @@ async def handle_command(message: str, token: str):
                 "reply": "📧 **Gmail Befehle:**\n\n" +
                         "`/gmail list` - Alle E-Mails anzeigen\n" +
                         "`/gmail get <id>` - Bestimmte E-Mail anzeigen\n" +
+                        "`/gmail reply <id> <text>` - Auf eine E-Mail antworten\n" +
                         "`/gmail help` - Diese Hilfe"
             }
         subcmd = args[0].lower()
@@ -1412,9 +3256,11 @@ async def handle_command(message: str, token: str):
                 client = get_gmail_client()
                 message = client.get_message(msg_id)
                 body = client.get_message_body(message)
-                reply = f"📧 **E-Mail:** {message.get('subject', 'kein Betreff')}\n"
-                reply += f"**Von:** {message.get('from', 'unbekannt')}\n"
-                reply += f"**Datum:** {message.get('date', 'unbekannt')}\n\n"
+                headers = message.get("payload", {}).get("headers", [])
+                header_map = {h.get("name", "").lower(): h.get("value", "") for h in headers}
+                reply = f"📧 **E-Mail:** {header_map.get('subject', 'kein Betreff')}\n"
+                reply += f"**Von:** {header_map.get('from', 'unbekannt')}\n"
+                reply += f"**Datum:** {header_map.get('date', 'unbekannt')}\n\n"
                 reply += f"**Inhalt:**\n{body[:1000]}"
                 return {"status": "success", "reply": reply}
             except Exception as e:
@@ -1423,12 +3269,27 @@ async def handle_command(message: str, token: str):
                     "status": "error",
                     "reply": f"❌ Fehler: {str(e)}"
                 }
+        elif subcmd == "reply" and len(args) > 2:
+            try:
+                msg_id = args[1]
+                reply_text = " ".join(args[2:]).strip()
+                if not reply_text:
+                    return {"status": "error", "reply": "❌ Antworttext fehlt."}
+                client = get_gmail_client()
+                result = client.send_reply(msg_id, reply_text)
+                if result.get("error"):
+                    return {"status": "error", "reply": f"❌ Reply fehlgeschlagen: {result.get('error')}"}
+                return {"status": "success", "reply": f"✅ Antwort gesendet (ID: `{result.get('id', 'unbekannt')}`)"}
+            except Exception as e:
+                logger.error(f"Gmail reply Fehler: {e}")
+                return {"status": "error", "reply": f"❌ Fehler: {str(e)}"}
         elif subcmd == "help":
             return {
                 "status": "success",
                 "reply": "📧 **Gmail Hilfe:**\n\n" +
                         "`/gmail list` - Alle E-Mails anzeigen\n" +
-                        "`/gmail get <id>` - Bestimmte E-Mail anzeigen"
+                        "`/gmail get <id>` - Bestimmte E-Mail anzeigen\n" +
+                        "`/gmail reply <id> <text>` - Auf E-Mail antworten"
             }
         else:
             return {
@@ -1445,6 +3306,7 @@ async def handle_command(message: str, token: str):
                         "`/telegram status` - Bot-Status anzeigen\n" +
                         "`/telegram users` - Aktive Benutzer anzeigen\n" +
                         "`/telegram send <nachricht>` - Nachricht an alle senden\n" +
+                        "`/telegram send --to <chat_id|@channel> <nachricht>` - Nachricht an Ziel senden\n" +
                         "`/telegram broadcast <nachricht>` - Gleiches wie send\n" +
                         "`/telegram help` - Diese Hilfe"
             }
@@ -1462,7 +3324,7 @@ async def handle_command(message: str, token: str):
 **Enabled in Config:** {'✅ Ja' if config.get('telegram.enabled', False) else '❌ Nein'}
 
 **Hinweis:** 
-- Benutzer müssen dem Bot zuerst eine Nachricht schreiben, um aktiv zu werden
+- Entweder aktive Benutzer ODER konfigurierte Ziele (`chat_id`, `channel_id`, `chat_ids`)
 - Der Bot antwortet auf Direktnachrichten mit Ollama
 - Du kannst Nachrichten an alle aktiven Benutzer senden
 """
@@ -1489,7 +3351,19 @@ async def handle_command(message: str, token: str):
             return {"status": "success", "reply": reply}
         
         elif subcmd in ["send", "broadcast"] and len(args) > 1:
-            message = ' '.join(args[1:])
+            # Optional: /telegram send --to <target[,target2]> <nachricht>
+            explicit_targets: List[Any] = []
+            message_start_index = 1
+            if len(args) > 3 and args[1] in ["--to", "-t"]:
+                explicit_targets = _parse_explicit_telegram_targets(args[2])
+                message_start_index = 3
+
+            message = ' '.join(args[message_start_index:])
+            if not message:
+                return {
+                    "status": "error",
+                    "reply": "❌ Nachricht fehlt. Beispiel: `/telegram send --to @meinchannel Hallo`"
+                }
             
             try:
                 # Broadcast an alle aktiven Benutzer
@@ -1501,10 +3375,11 @@ async def handle_command(message: str, token: str):
                         "reply": "❌ Telegram Bot nicht initialisiert oder nicht konfiguriert."
                     }
                 
-                if not bot._user_sessions:
+                target_chat_ids = explicit_targets or _get_telegram_target_chat_ids(bot)
+                if not target_chat_ids:
                     return {
                         "status": "error",
-                        "reply": "❌ Keine aktiven Benutzer gefunden.\n\nBenutzer müssen dem Bot zuerst eine Nachricht schreiben."
+                        "reply": "❌ Keine Telegram-Ziele gefunden.\n\nSetze `telegram.chat_id`, `telegram.channel_id` oder `telegram.chat_ids` in der config.yaml."
                     }
                 
                 # Nachricht an alle senden
@@ -1512,10 +3387,10 @@ async def handle_command(message: str, token: str):
                 failed = 0
                 errors = []
                 
-                for user_id in bot._user_sessions.keys():
+                for chat_id in target_chat_ids:
                     try:
                         await bot.application.bot.send_message(
-                            chat_id=user_id,
+                            chat_id=chat_id,
                             text=message,
                             parse_mode='Markdown'
                         )
@@ -1555,16 +3430,21 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
 • `/telegram status` - Bot-Status und Konfiguration prüfen
 • `/telegram users` - Alle aktiven Benutzer anzeigen
 • `/telegram send Hallo` - Nachricht an ALLE aktiven Benutzer senden
+• `/telegram send --to 123456789 Hallo` - Direkt an eine Chat-ID senden
+• `/telegram send --to @meinchannel Hallo` - Direkt an Kanal/Gruppe senden
 
 **Wichtig:**
-• Benutzer müssen dem Bot zuerst eine Nachricht schreiben, um aktiv zu werden
+• Entweder aktive Benutzer ODER konfigurierte Ziele (`chat_id`, `channel_id`, `chat_ids`)
 • Der Bot speichert den Verlauf pro Benutzer
 • Nachrichten werden im Markdown-Format unterstützt
 
 **Benutzer-Befehle (im Bot):**
 • /start - Bot starten
 • /help - Hilfe anzeigen
-• /clear - Verlauf löschen"""
+• /clear - Verlauf löschen
+• /model - Aktuelles Modell
+• /model liste - Modelle anzeigen
+• /model <name> - Modell wechseln"""
             }
         
         else:
@@ -1577,78 +3457,189 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
     elif command in ["shell", "cmd", "bash", "powershell"]:
         if not args:
             return {
-                "status": "success",  # Wichtig: "success" statt "error" für bessere UI
-                "reply": "❌ Bitte einen Befehl angeben, z.B. `/shell dir` oder `/shell date`"
+                "status": "success",
+                "reply": "❌ Bitte einen Befehl angeben, z.B. `/shell dir | findstr py`"
             }
         
         try:
-            # Bei curl-Befehlen alle Argumente als einen String behandeln
-            if args[0] == "curl":
-                # Restliche Argumente zu einem String verbinden
-                curl_args = ' '.join(args[1:]) if len(args) > 1 else ""
-                shell_request = ShellRequest(command="curl", args=[curl_args] if curl_args else [])
-            else:
-                # Normale Befehle
-                shell_request = ShellRequest(command=args[0], args=args[1:] if len(args) > 1 else [])
+            full_command = ' '.join(args)
+            logger.info(f"🖥️ GABI SHELL: {full_command}")
             
-            # Shell-Befehl ausführen
-            result = await execute_command(shell_request, token)
+            # WICHTIG: UTF-8 für Windows richtig einstellen
+            import subprocess
+            import sys
             
-            # Ausgabe formatieren
-            if result.get("status") == "success":
-                output = result.get('stdout', '')
-                error = result.get('stderr', '')
+            # Für Windows: CHCP 65001 = UTF-8 Codepage
+            if sys.platform == "win32":
+                # Setze Codepage auf UTF-8 für den Befehl
+                full_command = f'chcp 65001 >nul && {full_command}'
+            
+            # Führe Befehl aus mit korrekter Encoding-Behandlung
+            result = subprocess.run(
+                full_command,
+                capture_output=True,
+                text=True,
+                shell=True,
+                timeout=30,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            # Besserer Check für erfolgreiche Ausführung
+            if result.returncode == 0:
+                output = result.stdout
                 
+                # PRÜFEN OB ES EINE Umlenkung (>) GIBT
+                if '>' in full_command:
+                    # Extrahiere den Dateinamen nach dem >
+                    file_match = re.search(r'>\s*([^\s&|]+)', full_command)
+                    if file_match:
+                        filename = file_match.group(1).strip()
+                        # Prüfe ob die Datei existiert und lies ihren Inhalt
+                        if os.path.exists(filename):
+                            try:
+                                with open(filename, 'r', encoding='utf-8') as f:
+                                    file_content = f.read()
+                                return {
+                                    "status": "success",
+                                    "reply": f"✅ Befehl ausgeführt. Datei '{filename}' wurde erstellt.\n\n**Inhalt der Datei:**\n```\n{file_content}\n```",
+                                    "command": full_command,
+                                    "returncode": result.returncode
+                                }
+                            except Exception as e:
+                                return {
+                                    "status": "success",
+                                    "reply": f"✅ Befehl ausgeführt. Datei '{filename}' wurde erstellt (kann nicht gelesen werden: {str(e)}).",
+                                    "command": full_command
+                                }
+                
+                # Normaler Fall: Ausgabe vorhanden
                 if output:
-                    # Wenn es JSON ist, besonders formatieren
-                    if output.strip().startswith('{') or output.strip().startswith('['):
-                        try:
-                            json_data = json.loads(output)
-                            formatted = json.dumps(json_data, indent=2, ensure_ascii=False)
-                            return {
-                                "status": "success",
-                                "reply": f"```json\n{formatted[:4000]}\n```"
-                            }
-                        except:
-                            pass
+                    # Bereinige Windows-Encoding-Fehler
+                    replacements = {
+                        'â€”': '—', 'â€“': '–', 'â‚¬': '€',
+                        'Ã¤': 'ä', 'Ã¶': 'ö', 'Ã¼': 'ü',
+                        'ÃŸ': 'ß', 'Ã„': 'Ä', 'Ã–': 'Ö',
+                        'Ãœ': 'Ü', 'â€™': "'", 'â€œ': '"',
+                        'â€': '"', 'Â': '',
+                    }
+                    for wrong, correct in replacements.items():
+                        output = output.replace(wrong, correct)
                     
-                    # Normale Ausgabe
                     return {
                         "status": "success",
-                        "reply": f"```\n{output[:4000]}{'...' if len(output) > 4000 else ''}\n```"
-                    }
-                elif error:
-                    return {
-                        "status": "success",  # Auch Fehler als "success" für UI
-                        "reply": f"❌ **Fehler:**\n```\n{error[:2000]}\n```"
+                        "reply": f"```\n{output}\n```",
+                        "command": full_command,
+                        "returncode": result.returncode
                     }
                 else:
-                    # Keine Ausgabe, aber erfolgreich
-                    if result.get('returncode') == 0:
-                        return {
-                            "status": "success",
-                            "reply": f"✅ Befehl `{' '.join(args)}` ausgeführt (keine Ausgabe)"
-                        }
-                    else:
-                        return {
-                            "status": "success",
-                            "reply": f"❌ Befehl fehlgeschlagen (Exit-Code: {result.get('returncode')})"
-                        }
+                    # KEINE Ausgabe, aber erfolgreich - Prüfe ob Dateien erstellt wurden
+                    return {
+                        "status": "success",
+                        "reply": f"✅ Befehl erfolgreich ausgeführt (keine Konsolenausgabe).\n\nTipp: Verwende `type dateiname.txt` um den Inhalt erstellter Dateien anzuzeigen.",
+                        "command": full_command
+                    }
             else:
-                # Fehler vom execute_command
-                error_msg = result.get('stderr', result.get('reply', 'Unbekannter Fehler'))
                 return {
                     "status": "success",
-                    "reply": f"❌ **Fehler bei Ausführung:**\n```\n{error_msg}\n```"
+                    "reply": f"❌ Fehler (Code {result.returncode}):\n```\n{result.stderr}\n```",
+                    "command": full_command
                 }
                 
-        except Exception as e:
-            logger.error(f"Shell-Befehl Fehler: {e}")
+        except subprocess.TimeoutExpired:
             return {
                 "status": "success",
-                "reply": f"❌ **Fehler beim Ausführen:**\n```\n{str(e)}\n```"
+                "reply": f"❌ Timeout nach 30 Sekunden: `{full_command}`"
+            }
+        except Exception as e:
+            logger.error(f"Shell-Fehler: {e}")
+            return {
+                "status": "success",
+                "reply": f"❌ Fehler: {str(e)}"
             }
             
+    # Erweiterte Version mit temporären Dateien für komplexe Pipes
+    elif command == "pipe":
+        # Spezieller Befehl für komplexe Pipes mit Zwischenspeicherung
+        import tempfile
+        
+        if len(args) < 3 or ">" not in full_command:
+            return {"status": "success", "reply": "❌ Beispiel: `/pipe dir > temp.txt && type temp.txt | findstr py`"}
+        
+        with tempfile.NamedTemporaryFile(mode='w+', suffix='.tmp', delete=False) as tmp:
+            tmp_name = tmp.name
+        
+        try:
+            # Ersetze temporäre Datei im Befehl
+            cmd_with_temp = full_command.replace('temp.txt', tmp_name)
+            
+            result = subprocess.run(
+                cmd_with_temp,
+                capture_output=True,
+                text=True,
+                shell=True,
+                timeout=30,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            # Aufräumen
+            if os.path.exists(tmp_name):
+                os.unlink(tmp_name)
+            
+            return {
+                "status": "success",
+                "reply": f"```\n{result.stdout}\n```"
+            }
+        except Exception as e:
+            return {"status": "success", "reply": f"❌ Fehler: {e}"}            
+            
+           
+    # ===== EXPLIZIT MERKEN =====
+    elif command in ["merken", "remember", "note"]:
+        note_text = " ".join(args).strip()
+        if not note_text:
+            return {
+                "status": "success",
+                "reply": "🧠 Nutzung: `/merken <inhalt>`\nBeispiel: `/merken adresse https://www.jazzland.at`"
+            }
+        entry, created = chat_memory.remember_note(note_text, source="command")
+        if not entry:
+            return {"status": "error", "reply": "❌ Konnte den Inhalt nicht merken."}
+        action = "Gemerkt" if created else "Schon gemerkt"
+        ts = datetime.fromisoformat(entry["timestamp"]).strftime("%d.%m.%Y %H:%M:%S")
+        return {
+            "status": "success",
+            "reply": f"✅ {action}: {entry['text']}\n🕒 {ts}\nAbrufen mit `/gemerkt`.",
+            "timestamp": datetime.now().isoformat(),
+            "tool_used": "Memory · /merken"
+        }
+
+    elif command in ["gemerkt", "merkliste", "notes"]:
+        limit = 20
+        if args and args[0].isdigit():
+            limit = max(1, min(int(args[0]), 100))
+        notes = chat_memory.get_remembered_notes(limit=limit)
+        if not notes:
+            return {
+                "status": "success",
+                "reply": "📭 Noch nichts explizit gemerkt. Nutze `/merken <inhalt>`."
+            }
+        lines = ["🧠 **Gemerkte Einträge:**", ""]
+        for idx, note in enumerate(notes, 1):
+            note_ts = note.get("timestamp", "")
+            try:
+                note_time = datetime.fromisoformat(note_ts).strftime("%d.%m.%Y %H:%M")
+            except Exception:
+                note_time = note_ts or "unbekannt"
+            lines.append(f"**{idx}.** {note.get('text', '').strip()}")
+            lines.append(f"   🕒 {note_time}")
+        return {
+            "status": "success",
+            "reply": "\n".join(lines),
+            "timestamp": datetime.now().isoformat()
+        }
+
     # ===== MEMORY ANZEIGEN =====
     elif command == "memory":
         memory = chat_memory.memory_content[-1500:] if len(chat_memory.memory_content) > 1500 else chat_memory.memory_content
@@ -1690,6 +3681,75 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
                 "status": "error",
                 "reply": f"❌ Fehler bei Soul-Generierung: {str(e)}"
             }
+
+    # ===== MODEL =====
+    elif command == "model":
+        try:
+            if not args:
+                current = ollama_client.default_model
+                return {
+                    "status": "success",
+                    "reply": f"🤖 Aktuelles Modell: `{current}`",
+                    "current_model": current,
+                    "model_used": current,
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+            sub = args[0].lower()
+            if sub in ["liste", "list", "ls"]:
+                models_info = ollama_client.list_models()
+                models = [m.get("name") for m in models_info.get("models", [])]
+                current = ollama_client.default_model
+                lines = [f"{'✅' if m == current else '•'} `{m}`" for m in models]
+                return {
+                    "status": "success",
+                    "reply": "📚 **Verfügbare Modelle:**\n\n" + "\n".join(lines),
+                    "current_model": current,
+                    "timestamp": datetime.now().isoformat(),
+                }
+
+            target_model = " ".join(args).strip()
+            models_info = ollama_client.list_models()
+            available = [m.get("name") for m in models_info.get("models", [])]
+            if target_model not in available:
+                return {"status": "error", "reply": f"❌ Modell `{target_model}` nicht gefunden. Nutze `/model liste`."}
+
+            config.set("ollama.default_model", target_model)
+            ollama_client.default_model = target_model
+            global DEFAULT_MODEL
+            DEFAULT_MODEL = target_model
+            return {
+                "status": "success",
+                "reply": f"✅ Modell gewechselt zu `{target_model}`",
+                "current_model": target_model,
+                "model_used": target_model,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            return {"status": "error", "reply": f"❌ Model-Fehler: {e}"}
+
+    # ===== CALENDAR =====
+    elif command == "calendar":
+        try:
+            max_results = 10
+            if args and args[0].isdigit():
+                max_results = max(1, min(int(args[0]), 25))
+
+            cal = get_calendar_client()
+            events = cal.list_upcoming_events(max_results=max_results)
+            if not events:
+                return {"status": "success", "reply": "📅 Keine bevorstehenden Kalendertermine gefunden."}
+
+            lines = ["📅 **Nächste Kalendertermine:**", ""]
+            for event in events:
+                start = event.get("start", "unbekannt")
+                summary = event.get("summary", "(Ohne Titel)")
+                location = event.get("location", "")
+                lines.append(f"• `{start}` - **{summary}**" + (f" | 📍 {location}" if location else ""))
+            return {"status": "success", "reply": "\n".join(lines)}
+        except Exception as e:
+            return {"status": "error", "reply": f"❌ Calendar-Fehler: {e}"}
+
     # ===== STATUS ANZEIGEN =====
     elif command == "status":
         status = chat_memory.heartbeat_content
@@ -1725,41 +3785,78 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
     **🔍 AUTO-EXPLORATION:**
     `/explore` - Status der Auto-Exploration anzeigen
     `/explore now` - Sofortige System-Exploration starten
+    `/sleep` - Schlafphase: Memory sortieren/kompaktieren
 
     **📧 GMAIL:**
     `/gmail list` - Alle E-Mails anzeigen
     `/gmail get <id>` - Bestimmte E-Mail anzeigen
+    `/gmail reply <id> <text>` - Auf E-Mail antworten
     `/gmail help` - Gmail-Hilfe
+
+    **📅 CALENDAR:**
+    `/calendar` - Nächste Termine anzeigen
+    `/calendar 20` - Mehr Termine (max. 25)
 
     **📱 TELEGRAM:**
     `/telegram status` - Bot-Status und Konfiguration prüfen
     `/telegram users` - Alle aktiven Benutzer anzeigen
     `/telegram send <nachricht>` - Nachricht an ALLE aktiven Benutzer senden
+    `/telegram send --to <chat_id|@channel> <nachricht>` - Direktes Ziel
     `/telegram broadcast <nachricht>` - Gleiches wie send
     `/telegram help` - Telegram-Hilfe
 
+    **🤖 MODEL:**
+    `/model` - Aktuelles Modell
+    `/model liste` - Modelle anzeigen
+    `/model <name>` - Modell wechseln
+
     **💻 SHELL:**
-    `/shell <befehl>` - Shell-Befehl ausführen (z.B. `/shell dir`, `/shell ipconfig`)
+    `/shell <befehl>` - Shell-Befehl ausführen
     `/shell analyze <befehl>` - Befehl ausführen und Ergebnis analysieren
 
     **🧠 MEMORY & SOUL:**
     `/memory` - Letzte Erinnerungen anzeigen
+    `/merken <inhalt>` - Etwas dauerhaft speichern
+    `/gemerkt` - Gemerkte Einträge abrufen
     `/soul` - Persönlichkeit anzeigen
     `/generate-soul` - Soul generieren/aktualisieren
     `/learn` - Zeige was ich über dich gelernt habe
 
     **📊 SYSTEM:**
     `/status` - System-Status anzeigen
+    `/comfy status` - ComfyUI/Invoke Discovery anzeigen
+    `/comfy scan` - Discovery neu scannen
+    `/comfy start` - ComfyUI automatisch starten (wenn gefunden)
     `/help` - Diese Hilfe
 
     **✨ AUTO-EXPLORATION:**
-    Nach 10 Minuten Inaktivität erkundet GABI selbstständig das System und speichert Entdeckungen im Memory.
+    Nach 10 Minuten Inaktivität erkundet GABI selbstständig das System.
+
+    **🔥 PIPE & REDIRECTION BEISPIELE:**
+
+    `👉 /shell (echo Zeile 1 & echo Zeile 2 & echo Zeile 3) > datei.txt && type datei.txt`
+    → Mehrzeilige Datei erstellen und anzeigen
+
+    `👉 /shell echo 1,2,3 > fib.txt && type fib.txt`
+    → Komma-separierte Werte in Datei speichern
+
+    `👉 /shell powershell "$a=0;$b=1;1..10 | foreach {$a;$c=$a+$b;$a=$b;$b=$c}" > fibonacci.txt && type fibonacci.txt`
+    → Fibonacci-Zahlen (0,1,1,2,3,5,8,13,21,34) in Datei speichern
+
+    `👉 /shell dir | findstr ".py" | sort`
+    → Python-Dateien auflisten und sortieren (Pipe)
+
+    `👉 /shell ipconfig | findstr "IPv4"`
+    → Nur IPv4-Adressen aus ipconfig anzeigen
+
+    `👉 /shell tasklist | findstr "python" | wc -l`
+    → Anzahl laufender Python-Prozesse zählen
 
     **💡 TIPPS:**
-    • Shell-Befehle werden direkt ausgeführt und die Ausgabe angezeigt
-    • Bei Gmail-Befehlen wird der Inhalt formatiert dargestellt
-    • Telegram-Nachrichten können an alle aktiven Benutzer gesendet werden
-    • Mit `/explore now` kannst du eine sofortige System-Erkundung starten
+    • Mit `>` schreibst du Ausgaben in Dateien
+    • Mit `|` verarbeitest du Ausgaben weiter (Pipes)
+    • Mit `&&` kannst du Befehle verketten
+    • Nach Dateierstellung mit `type` den Inhalt anzeigen
     """
         return {"status": "success", "reply": help_text}
     # ===== UNBEKANNTER BEFEHL =====
@@ -1777,7 +3874,7 @@ async def chat_completions(
     model = payload.get("model", ollama_client.default_model)
     messages = payload.get("messages", [])
     try:
-        response = ollama_client.chat(model=model, messages=messages)
+        response = await _ollama_chat_async(model=model, messages=messages)
         return {
             "id": f"chatcmpl-{response.get('id', 'unknown')}",
             "object": "chat.completion",
@@ -1801,7 +3898,7 @@ async def chat_completions(
 async def list_models(_api_key: str = Depends(verify_api_key)) -> dict[str, Any]:
     """List available Ollama models."""
     try:
-        result = ollama_client.list_models()
+        result = await _ollama_list_models_async()
         return {
             "object": "list",
             "data": [
@@ -1825,6 +3922,7 @@ async def get_memory(_api_key: str = Depends(verify_api_key)):
         "memory": chat_memory.memory_content,
         "skills": chat_memory.skills_content,
         "heartbeat": chat_memory.heartbeat_content,
+        "remembered_notes": chat_memory.get_remembered_notes(limit=100),
         "conversation_count": len(chat_memory.conversation_history) // 2,
         "last_updated": datetime.now().isoformat(),
     }
@@ -1931,6 +4029,7 @@ async def memory_stats(_api_key: str = Depends(verify_api_key)):
                 "lines": memory_lines,
                 "conversations": conversation_count,
                 "history_count": len(chat_memory.conversation_history) // 2,
+                "remembered_notes": len(chat_memory.user_notes),
                 "archives_available": len(archives),
                 "archive_files": archives[-5:] if archives else [],  # Letzte 5 Archive
             },
@@ -2043,7 +4142,7 @@ async def whisper_status() -> dict:
 @router.post("/api/whisper/transcribe")
 async def transcribe_audio(
     background_tasks: BackgroundTasks,
-    file,
+    file: UploadFile = File(...),
     language: Optional[str] = None,
     _api_key: str = Depends(verify_api_key),
 ) -> dict:
@@ -2070,48 +4169,103 @@ async def transcribe_audio(
     except Exception as e:
         logger.error(f"Whisper transcribe error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/api/whisper/transcribe/sync")
 async def transcribe_audio_sync(
-    file,
+    file: UploadFile = File(...),
     language: Optional[str] = None,
     _api_key: str = Depends(verify_api_key),
 ) -> dict:
     """Transcribe audio file synchronously."""
+    tmp_path = None
     try:
         whisper = get_whisper_client()
         if not whisper.is_available():
             raise HTTPException(status_code=503, detail="Whisper server not available")
-        # Save uploaded file temporarily
-        import tempfile
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp:
-            content = await file.read()
-            tmp.write(content)
-            tmp_path = tmp.name
-        try:
-            result = whisper.transcribe_file(tmp_path, language)
-            return {"status": "success", "result": result}
-        finally:
-            os.unlink(tmp_path)
+        
+        # Prüfe ob eine Datei hochgeladen wurde
+        if not file:
+            raise HTTPException(status_code=400, detail="Keine Datei hochgeladen")
+        
+        # Datei-Infos
+        filename = getattr(file, 'filename', 'audio.wav')
+        logger.info(f"🎤 Empfange Datei: {filename}")
+        
+        # Lese Datei direkt in Memory (kein temp file nötig für diesen Test)
+        content = await file.read()
+        logger.info(f"📦 Dateigröße: {len(content)} bytes")
+        
+        # Sende DIREKT an Whisper-Server
+        import requests
+        
+        # WICHTIG: Der Whisper-Server will:
+        # 1. file im QUERY-STRING
+        # 2. file im BODY als multipart
+        params = {'file': filename}
+        if language:
+            params['language'] = language
+        
+        # Datei als Bytes für den Upload (MIME aus Upload übernehmen)
+        content_type = getattr(file, "content_type", None) or "application/octet-stream"
+        files = {'file': (filename, content, content_type)}
+        
+        logger.info(f"📤 Sende an Whisper: {whisper.base_url}/inference mit params={params}")
+        
+        response = requests.post(
+            f"{whisper.base_url}/inference",
+            params=params,
+            files=files,
+            timeout=60
+        )
+        
+        logger.info(f"📥 Whisper Antwort: Status {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            text = result.get('text', '')
+            if not text and 'segments' in result:
+                text = ' '.join([seg.get('text', '') for seg in result.get('segments', [])])
+            
+            return {
+                "status": "success",
+                "text": text,
+                "result": result,
+                "language": result.get('detected_language', language),
+                "duration": result.get('duration', 0)
+            }
+        else:
+            error_text = response.text
+            logger.error(f"❌ Whisper Fehler {response.status_code}: {error_text}")
+            return {
+                "status": "error",
+                "error": f"Whisper-Server Fehler {response.status_code}: {error_text}"
+            }
+        
     except Exception as e:
-        logger.error(f"Whisper transcribe error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Transkriptionsfehler: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
 
 # ============ Telegram Endpoints ============
 @router.get("/api/telegram/status")
 async def telegram_api_status(_api_key: str = Depends(verify_api_key)) -> dict:
     """Check Telegram bot status."""
     bot = get_telegram_bot()
+    target_chat_ids = _get_telegram_target_chat_ids(bot)
     return {
         "enabled": config.get("telegram.enabled", False),
         "bot_token_set": bool(bot.bot_token and bot.bot_token != "YOUR_TELEGRAM_BOT_TOKEN"),
         "bot_running": bot.application is not None,
-        "active_sessions": len(bot._user_sessions) if hasattr(bot, '_user_sessions') else 0
+        "active_sessions": len(bot._user_sessions) if hasattr(bot, '_user_sessions') else 0,
+        "configured_targets": target_chat_ids,
+        "target_count": len(target_chat_ids)
     }
 
 @router.post("/api/telegram/send")
 async def send_telegram_message(
     payload: dict,
-    background_tasks: BackgroundTasks,
     _api_key: str = Depends(verify_api_key),
 ) -> dict:
     """Send a message to all active Telegram users."""
@@ -2128,30 +4282,37 @@ async def send_telegram_message(
                 "error": "Telegram bot not configured"
             }
 
-        # Nachricht an alle aktiven Benutzer senden
+        if not bot.application or not bot.application.bot:
+            return {"success": False, "error": "Telegram bot not initialized"}
+
+        explicit_targets = _parse_explicit_telegram_targets(payload.get("chat_ids"))
+        if not explicit_targets and payload.get("chat_id") is not None:
+            explicit_targets = _parse_explicit_telegram_targets(payload.get("chat_id"))
+
+        target_chat_ids = explicit_targets or _get_telegram_target_chat_ids(bot)
+        if not target_chat_ids:
+            return {
+                "success": False,
+                "error": "Keine Telegram-Ziele gefunden. Setze telegram.chat_id, telegram.channel_id oder telegram.chat_ids in config.yaml."
+            }
+
         sent_count = 0
         errors = []
-        
-        # Asynchron senden
-        async def send_to_all():
-            nonlocal sent_count, errors
-            for user_id in bot._user_sessions.keys():
-                try:
-                    if bot.application and bot.application.bot:
-                        await bot.application.bot.send_message(
-                            chat_id=user_id,
-                            text=message,
-                            parse_mode='Markdown'
-                        )
-                        sent_count += 1
-                except Exception as e:
-                    errors.append(f"User {user_id}: {str(e)}")
-        
-        background_tasks.add_task(send_to_all)
-        
+        for chat_id in target_chat_ids:
+            try:
+                await bot.application.bot.send_message(
+                    chat_id=chat_id,
+                    text=message,
+                    parse_mode='Markdown'
+                )
+                sent_count += 1
+            except Exception as e:
+                errors.append(f"Chat {chat_id}: {str(e)}")
+
         return {
-            "success": True,
-            "message": f"Nachricht wird an {len(bot._user_sessions)} aktive Benutzer gesendet",
+            "success": sent_count > 0,
+            "message": f"Nachricht an {sent_count}/{len(target_chat_ids)} Ziele gesendet",
+            "targets": target_chat_ids,
             "sent_count": sent_count,
             "errors": errors if errors else None
         }
@@ -2206,7 +4367,10 @@ async def get_telegram_messages(
         # Auf max 50 Nachrichten begrenzen
         all_messages = all_messages[:50]
         
-        logger.info(f"📨 Telegram: {len(all_messages)} Nachrichten gesendet")
+        if all_messages:
+            logger.info(f"Telegram: {len(all_messages)} Nachrichten verfügbar")
+        else:
+            logger.debug("Telegram: keine neuen Nachrichten")
         
         return {
             "messages": all_messages,
@@ -2237,27 +4401,40 @@ async def telegram_broadcast(
                 "error": "Telegram bot not initialized"
             }
         
-        # An alle aktiven Benutzer senden
+        # Optional explizite Ziele via payload.chat_id / payload.chat_ids
+        explicit_targets = _parse_explicit_telegram_targets(payload.get("chat_ids"))
+        if not explicit_targets and payload.get("chat_id") is not None:
+            explicit_targets = _parse_explicit_telegram_targets(payload.get("chat_id"))
+
+        # An alle verfügbaren Ziele senden (aktive Sessions + config)
+        target_chat_ids = explicit_targets or _get_telegram_target_chat_ids(bot)
+        if not target_chat_ids:
+            return {
+                "success": False,
+                "error": "Keine Telegram-Ziele gefunden. Setze telegram.chat_id, telegram.channel_id oder telegram.chat_ids in config.yaml."
+            }
+
         sent = 0
         failed = 0
         
-        for user_id in bot._user_sessions.keys():
+        for chat_id in target_chat_ids:
             try:
                 await bot.application.bot.send_message(
-                    chat_id=user_id,
+                    chat_id=chat_id,
                     text=message,
                     parse_mode='Markdown'
                 )
                 sent += 1
             except Exception as e:
-                logger.error(f"Failed to send to user {user_id}: {e}")
+                logger.error(f"Failed to send to Telegram target {chat_id}: {e}")
                 failed += 1
         
         return {
             "success": True,
             "sent": sent,
             "failed": failed,
-            "total": len(bot._user_sessions)
+            "total": len(target_chat_ids),
+            "targets": target_chat_ids
         }
         
     except Exception as e:
@@ -2281,120 +4458,150 @@ async def get_status():
         ollama_ok = True
     except Exception:
         ollama_ok = False
-    # Check Whisper
+    
+    # Check Whisper - VERBESSERT
     whisper_ok = False
     whisper_models = []
+    whisper_info = "nicht verfügbar"
     try:
         whisper = get_whisper_client()
         whisper_ok = whisper.is_available()
         if whisper_ok:
             whisper_models = whisper.get_models()
+            whisper_info = f"verfügbar ({', '.join(whisper_models) if whisper_models else 'läuft'})"
+        _log_whisper_state(whisper_ok, whisper_models)
+    except Exception as e:
+        logger.error(f"Whisper check error: {e}")
+        whisper_info = f"Fehler: {str(e)}"
+    
+    drive_root = Path.cwd().anchor or "/"
+    total, used, free = shutil.disk_usage(drive_root)
+
+    calendar_ok = False
+    try:
+        calendar_ok = bool(get_calendar_client().service)
     except Exception:
-        pass
-    _, used, free = shutil.disk_usage("/")
+        calendar_ok = False
+    discovery = _get_tool_discovery(force=False)
+    model_profiles = [
+        {
+            "name": m,
+            "capabilities": _infer_model_capabilities(m),
+        }
+        for m in models
+    ]
+    
     return {
         "gateway": "online",
         "system": {
             "os": platform.system(),
             "version": platform.release(),
+            "storage_drive": drive_root,
             "storage_free_gb": round(free / (2**30), 2),
+            "storage_used_gb": round(used / (2**30), 2),
+            "storage_total_gb": round(total / (2**30), 2),
         },
         "services": {
             "ollama": {
                 "status": "connected" if ollama_ok else "offline",
                 "available_models": models,
+                "model_profiles": model_profiles,
             },
             "whisper": {
                 "status": "connected" if whisper_ok else "offline",
                 "available_models": whisper_models,
+                "info": whisper_info
             },
             "telegram": {"enabled": config.get("telegram.enabled", False)},
             "gmail": {"enabled": config.get("gmail.enabled", False)},
+            "calendar": {"enabled": calendar_ok},
+            "image_tools": discovery,
         },
     }
 # ============ Shell Endpoints ============
 @router.post("/shell")
 async def execute_command(request: ShellRequest, token: str = Header(None)):
     """
-    Führt JEDEN Shell-Befehl aus - mit korrektem Timeout!
+    Führt Shell-Befehle aus - transparent und mit voller Pipe-Unterstützung.
     """
     if token != config.get("api_key"):
         raise HTTPException(status_code=403, detail="Access Denied")
     
     try:
-        # Befehl richtig zusammenbauen - ALLES als EINEN String
+        # Befehl zusammenbauen
         if request.args:
-            # Bei curl-Befehlen besonders vorsichtig sein
-            if request.command == "curl":
-                # Für curl: Alle Argumente mit Leerzeichen verbinden
-                full_cmd = f"curl {' '.join(request.args)}"
-            else:
-                full_cmd = f"{request.command} {' '.join(request.args)}"
+            full_cmd = f"{request.command} {' '.join(request.args)}"
         else:
             full_cmd = request.command
         
-        logger.info(f"🖥️ Führe aus: {full_cmd}")
+        logger.info(f"🖥️ GABI EXEC: {full_cmd}")
         
-        # WICHTIG: Timeout von 10 Sekunden
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             full_cmd,
             capture_output=True,
-            text=True,  # WICHTIG: text=True für direkte String-Ausgabe
+            text=True,
             shell=True,
-            timeout=10,
-            encoding='cp850'  # Encoding für Windows
+            timeout=30,
+            encoding='utf-8',
+            errors='replace',
         )
         
-        # Aktivität aktualisieren
-        chat_memory.update_activity()
+        if 'chat_memory' in globals():
+            chat_memory.update_activity()
         
-        # Bei curl: Prüfen ob es eine API-Antwort ist (JSON)
-        if request.command == "curl" and result.stdout and result.stdout.strip().startswith('{'):
+        output = result.stdout
+        
+        # PRÜFEN AUF DATEI-ERSTELLUNG
+        if '>' in full_cmd and result.returncode == 0:
+            file_match = re.search(r'>\s*([^\s&|]+)', full_cmd)
+            if file_match:
+                filename = file_match.group(1).strip()
+                if os.path.exists(filename):
+                    try:
+                        with open(filename, 'r', encoding='utf-8') as f:
+                            file_content = f.read()
+                        return {
+                            "status": "success",
+                            "command_executed": full_cmd,
+                            "stdout": f"✅ Datei '{filename}' erstellt mit Inhalt:\n{file_content}",
+                            "stderr": result.stderr,
+                            "returncode": result.returncode
+                        }
+                    except:
+                        return {
+                            "status": "success",
+                            "command_executed": full_cmd,
+                            "stdout": f"✅ Datei '{filename}' wurde erstellt",
+                            "stderr": result.stderr,
+                            "returncode": result.returncode
+                        }
+        
+        # JSON Verschönerung
+        if output and output.strip().startswith(('{', '[')):
             try:
-                # Versuche JSON zu parsen und hübsch darzustellen
-                json_data = json.loads(result.stdout)
-                formatted_json = json.dumps(json_data, indent=2, ensure_ascii=False)
-                return {
-                    "status": "success",
-                    "stdout": formatted_json,
-                    "stderr": result.stderr,
-                    "returncode": result.returncode
-                }
+                json_data = json.loads(output)
+                output = json.dumps(json_data, indent=2, ensure_ascii=False)
             except:
-                pass  # Kein JSON, normal weiter
-        
-        # Normale Ausgabe zurückgeben
+                pass
+
         return {
             "status": "success",
-            "stdout": result.stdout,
+            "command_executed": full_cmd,
+            "stdout": output if output else "(Keine Ausgabe - aber Befehl ausgeführt)",
             "stderr": result.stderr,
             "returncode": result.returncode
         }
         
-    except subprocess.TimeoutExpired:
-        logger.error(f"❌ Timeout nach 10 Sekunden: {full_cmd}")
-        return {
-            "status": "error",
-            "stdout": "",
-            "stderr": "❌ Befehl dauerte zu lange (>10 Sekunden).",
-            "returncode": -1
-        }
-    except FileNotFoundError as e:
-        return {
-            "status": "error",
-            "stdout": "",
-            "stderr": f"❌ Befehl nicht gefunden: {request.command}",
-            "returncode": -1
-        }
     except Exception as e:
-        logger.error(f"❌ Shell Fehler: {e}")
+        logger.error(f"❌ Systemfehler: {e}")
         return {
             "status": "error",
+            "command_executed": full_cmd if 'full_cmd' in locals() else request.command,
             "stdout": "",
-            "stderr": f"❌ Fehler: {str(e)}",
+            "stderr": f"❌ Kritischer Fehler: {str(e)}",
             "returncode": -1
         }
-        
 @router.post("/shell/analyze")
 async def execute_and_analyze(request: ShellRequest, token: str = Header(None)):
     """
@@ -2428,7 +4635,7 @@ async def execute_and_analyze(request: ShellRequest, token: str = Header(None)):
         {output}
         """
         # Ollama fragen
-        ai_response = ollama_client.chat(
+        ai_response = await _ollama_chat_async(
             model=model, messages=[{"role": "user", "content": prompt}]
         )
         return {
@@ -2463,7 +4670,6 @@ async def generate_soul(_api_key: str = Depends(verify_api_key)):
         memory_lines = memory_content.split("\n")
         # Einfache Statistik: Häufige Wörter erkennen
         from collections import Counter
-        import re
         # Extrahiere User-Nachrichten
         user_messages = []
         bot_messages = []
@@ -2789,3 +4995,405 @@ async def get_file(filename: str, _api_key: str = Depends(verify_api_key)):
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/files/list")
+async def list_workspace_files(
+    query: str = "",
+    limit: int = 200,
+    _api_key: str = Depends(verify_api_key),
+):
+    """List files in workspace for @-autocomplete in chat."""
+    try:
+        root = Path(".").resolve()
+        files: list[str] = []
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(root).as_posix()
+            if rel.startswith(".git/") or "/.git/" in rel or "__pycache__" in rel:
+                continue
+            if query and query.lower() not in rel.lower():
+                continue
+            files.append(rel)
+            if len(files) >= max(10, min(limit, 1000)):
+                break
+        files.sort()
+        return {"files": files, "count": len(files)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/files/read")
+async def read_workspace_file(
+    path: str,
+    max_chars: int = 40000,
+    _api_key: str = Depends(verify_api_key),
+):
+    """Read a workspace file safely for chat context injection."""
+    try:
+        root = Path(".").resolve()
+        target = (root / path).resolve()
+        if not str(target).startswith(str(root)):
+            raise HTTPException(status_code=403, detail="Pfad außerhalb des Workspace ist nicht erlaubt")
+        if not target.exists() or not target.is_file():
+            raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+        content = target.read_text(encoding="utf-8", errors="replace")
+        clipped = content[: max(1000, min(max_chars, 200000))]
+        return {
+            "path": path,
+            "size": len(content),
+            "truncated": len(content) > len(clipped),
+            "content": clipped,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/chat/image/analyze")
+async def analyze_image_with_vlm(
+    file: UploadFile = File(...),
+    prompt: str = Form(""),
+    model: Optional[str] = Form(None),
+    request_id: Optional[str] = Form(None),
+    token: str = Header(None),
+):
+    """Analyze an uploaded image with a vision-capable Ollama model."""
+    if token != API_KEY_REQUIRED:
+        raise HTTPException(status_code=403, detail="API-Key ungültig")
+    rid = (request_id or "").strip() or f"img-{uuid.uuid4().hex[:12]}"
+    try:
+        _progress_init(rid)
+        _progress_add(rid, "Bildanalyse gestartet", "fa-image")
+        if not file or not file.filename:
+            raise HTTPException(status_code=400, detail="Keine Bilddatei übergeben")
+        content_type = (file.content_type or "").lower()
+        if not content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Datei ist kein Bild")
+
+        raw = await file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail="Leere Bilddatei")
+
+        models_info = await _ollama_list_models_async()
+        available = [m.get("name") for m in models_info.get("models", []) if m.get("name")]
+        selected_model = _pick_vision_model(available, model)
+        if not selected_model:
+            raise HTTPException(
+                status_code=400,
+                detail="Kein vision-fähiges Modell gefunden. Nutze z.B. qwen2.5vl oder llava.",
+            )
+        _progress_set_active_model(rid, selected_model)
+        _progress_add(rid, f"Vision-Routing: {selected_model}", "fa-eye")
+
+        user_prompt = (prompt or "").strip() or "Beschreibe und bewerte dieses Bild präzise."
+        img_b64 = base64.b64encode(raw).decode("utf-8")
+        thinking_steps = [
+            {
+                "text": f"Bild empfangen: {file.filename} ({len(raw)} Bytes)",
+                "icon": "fa-image",
+                "time": datetime.now().isoformat(),
+            },
+            {
+                "text": f"Vision-Routing: {selected_model}",
+                "icon": "fa-eye",
+                "time": datetime.now().isoformat(),
+            },
+        ]
+
+        messages: List[Dict[str, Any]] = [
+            {"role": "system", "content": chat_memory.get_system_prompt()},
+            {"role": "user", "content": user_prompt, "images": [img_b64]},
+        ]
+        _ensure_not_cancelled(rid)
+        _progress_add(rid, "VLM Chat-Anfrage läuft", "fa-brain")
+        response = await _ollama_chat_async(model=selected_model, messages=messages)
+        _ensure_not_cancelled(rid)
+        reply = _extract_ollama_text(response)
+        if not (reply or "").strip():
+            _progress_add(rid, "Keine Chat-Antwort, fallback auf /api/generate", "fa-rotate")
+            gen = await _ollama_generate_async(
+                model=selected_model,
+                prompt=user_prompt,
+                images=[img_b64],
+                stream=False,
+            )
+            reply = _extract_ollama_text(gen)
+        reply = (reply or "").strip() or "⚠️ Keine Bildanalyse erhalten."
+        _progress_add(rid, "Bildanalyse abgeschlossen", "fa-check-circle")
+        chat_memory.add_to_memory(f"[Bildanalyse: {file.filename}] {user_prompt}", reply)
+
+        return {
+            "status": "success",
+            "reply": reply,
+            "timestamp": datetime.now().isoformat(),
+            "model_used": selected_model,
+            "tool_used": "vision-analysis",
+            "thinking_steps": thinking_steps,
+            "request_id": rid,
+        }
+    except ChatCancelled:
+        return {
+            "status": "error",
+            "reply": "⏹️ Bildanalyse gestoppt.",
+            "request_id": rid,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Image analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        _progress_mark_done(rid)
+    
+@router.get("/gmail/inbox")
+async def get_inbox():
+    from integrations.gmail_client import gmail_client
+    return gmail_client.get_latest_threads()
+
+@router.get("/api/gmail/list")
+async def list_gmail_messages(_api_key: str = Depends(verify_api_key)):
+    """Gibt die Liste der neuesten Mails für die Seitenleiste zurück."""
+    try:
+        client = get_gmail_client()
+        messages = client.list_messages(max_results=10)
+        return messages
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/gmail/message/{message_id}")
+async def get_gmail_message_detail(message_id: str, _api_key: str = Depends(verify_api_key)):
+    """Holt den vollen Inhalt einer spezifischen Mail für den Chat."""
+    try:
+        # Wir holen den Client (Singleton)
+        client = get_gmail_client()
+        if not client or not client.service:
+            raise HTTPException(status_code=503, detail="Gmail Service nicht verfügbar")
+
+        # Nachricht abrufen (format='full')
+        # Wir nutzen direkt das Service-Objekt, um Fehler im Client zu umgehen
+        msg = client.service.users().messages().get(
+            userId="me", id=message_id, format="full"
+        ).execute()
+        
+        # Metadaten sicher extrahieren
+        headers = msg.get('payload', {}).get('headers', [])
+        subject = "Kein Betreff"
+        sender = "Unbekannt"
+        
+        for h in headers:
+            name = h['name'].lower()
+            if name == 'subject': subject = h['value']
+            if name == 'from': sender = h['value']
+        
+        # Den Body extrahieren mit deiner existierenden Methode
+        # Falls die Methode im Client abstürzt, hier ein Fallback
+        try:
+            body = client.get_message_body(msg)
+        except Exception:
+            body = msg.get('snippet', '(Inhalt konnte nicht dekodiert werden)')
+        
+        thread_id = msg.get("threadId")
+        recipient = ""
+        date_value = ""
+        for h in headers:
+            name = h['name'].lower()
+            if name == 'to': recipient = h['value']
+            if name == 'date': date_value = h['value']
+
+        return {
+            "id": message_id,
+            "thread_id": thread_id,
+            "subject": subject,
+            "from": sender,
+            "to": recipient,
+            "date": date_value,
+            "snippet": msg.get("snippet", ""),
+            "body": body
+        }
+    except Exception as e:
+        logger.error(f"Fehler in Gmail-API: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/gmail/reply/{message_id}")
+async def reply_gmail_message(
+    message_id: str,
+    payload: dict,
+    _api_key: str = Depends(verify_api_key),
+):
+    """Sendet eine Antwort auf eine bestehende E-Mail."""
+    body = (payload.get("body") or "").strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="Reply body is required")
+    try:
+        client = get_gmail_client()
+        result = client.send_reply(message_id, body)
+        if result.get("error"):
+            raise HTTPException(status_code=500, detail=result.get("error"))
+        return {"status": "success", "result": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Gmail reply error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/calendar/events")
+async def list_calendar_events(
+    max_results: int = 10,
+    _api_key: str = Depends(verify_api_key),
+):
+    """List upcoming Google Calendar events."""
+    try:
+        client = get_calendar_client()
+        events = client.list_upcoming_events(max_results=max_results)
+        return {"status": "success", "count": len(events), "events": events}
+    except Exception as e:
+        logger.error(f"Calendar list error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/chat")
+async def chat_endpoint(data: dict):
+    prompt = data.get("message", "")
+    if not prompt:
+        return {"status": "error", "response": "Keine Nachricht empfangen."}
+
+    # 1. Automatische Modell-Auswahl
+    selected_model = select_best_model(prompt)
+    
+    try:
+        # GABI antwortet
+        response = await _ollama_chat_async(
+            model=selected_model, 
+            messages=[{"role": "user", "content": prompt}]
+        )
+        ai_content = _extract_ollama_text(response)
+    except Exception as e:
+        logger.error(f"Ollama Error: {e}")
+        return {"status": "error", "response": "Ollama ist offline oder überlastet."}
+
+    # 2. TRIGGER-CHECK: Sucht nach /shell oder /python
+    # Verbessertes Regex: Findet den Befehl auch wenn er in Code-Blocks steht
+    match = re.search(r"/(shell|python)\s+(.+)", ai_content, re.DOTALL)
+    
+    if match:
+        cmd_type = match.group(1)
+        cmd_body = match.group(2).strip()
+        
+        # Falls das Modell den Befehl in ``` eingepackt hat, säubern:
+        cmd_body = cmd_body.split('```')[0].strip()
+        
+        # Befehl normieren (Python-Symlink Check: Gabi nutzt 'python')
+        full_cmd = f"python -c \"{cmd_body}\"" if cmd_type == "python" else cmd_body
+        
+        logger.info(f"⚡ EXECUTION ({cmd_type}): {full_cmd}")
+
+        # 3. ECHTE AUSFÜHRUNG
+        try:
+            result = subprocess.run(
+                full_cmd,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            return {
+                "status": "success",
+                "model_used": selected_model,
+                "response": ai_content,
+                "command_executed": full_cmd,
+                "stdout": result.stdout if result.stdout else "(Befehl ausgeführt)",
+                "stderr": result.stderr
+            }
+        except subprocess.TimeoutExpired:
+            return {"status": "error", "response": ai_content, "stderr": "Timeout: Befehl dauerte zu lange (>30s)"}
+        except Exception as e:
+            return {"status": "error", "response": ai_content, "stderr": str(e)}
+
+    return {
+        "status": "success", 
+        "model_used": selected_model, 
+        "response": ai_content
+    }
+
+# === LLMS per /model tauschen.
+@router.get("/api/models")
+async def get_models_info(_api_key: str = Depends(verify_api_key)):
+    """Gibt alle verfügbaren Ollama Modelle zurück"""
+    try:
+        models_info = await _ollama_list_models_async()
+        models = []
+        for m in models_info.get("models", []):
+            name = m.get("name")
+            capabilities = _infer_model_capabilities(name or "", m.get("details", {}))
+            models.append({
+                "name": name,
+                "size": m.get("size", 0),
+                "modified": m.get("modified", ""),
+                "details": m.get("details", {}),
+                "capabilities": capabilities,
+            })
+        
+        # Aktuelles Modell aus Config
+        current_model = config.get("ollama.default_model", "llama3.2")
+        vision_count = len([m for m in models if m.get("capabilities", {}).get("vision")])
+        
+        return {
+            "status": "success",
+            "current_model": current_model,
+            "models": models,
+            "count": len(models),
+            "vision_models": vision_count,
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Abrufen der Modelle: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/models/switch")
+async def switch_model(payload: dict, _api_key: str = Depends(verify_api_key)):
+    """Wechselt das aktive Ollama Modell"""
+    model_name = payload.get("model")
+    if not model_name:
+        raise HTTPException(status_code=400, detail="Model name required")
+    
+    try:
+        # Prüfe ob Modell verfügbar
+        models_info = await _ollama_list_models_async()
+        available_models = [m.get("name") for m in models_info.get("models", [])]
+        
+        if model_name not in available_models:
+            raise HTTPException(status_code=404, detail=f"Model '{model_name}' nicht gefunden")
+        
+        # Aktualisiere Config
+        config.set("ollama.default_model", model_name)
+        
+        # Aktualisiere ollama_client
+        ollama_client.default_model = model_name
+        
+        # Auch in globaler Variable aktualisieren
+        global DEFAULT_MODEL
+        DEFAULT_MODEL = model_name
+        
+        return {
+            "status": "success",
+            "message": f"Modell gewechselt zu: {model_name}",
+            "current_model": model_name
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Fehler beim Wechseln des Modells: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/models/current")
+async def get_current_model(_api_key: str = Depends(verify_api_key)):
+    """Gibt das aktuell verwendete Modell zurück"""
+    return {
+        "status": "success",
+        "current_model": ollama_client.default_model
+    }

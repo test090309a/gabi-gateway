@@ -7,3 +7,7 @@ __pycache__/
 venv/
 .env
 .tmp
+.claude
+.git
+tests
+backup

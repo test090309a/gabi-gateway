@@ -8,7 +8,14 @@
       "Bash(echo:*)",
       "Bash(done:*)",
       "Bash(python:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(echo.:*)",
+      "Bash(\"M:\\\\projekte_2026\\\\claude-code\\\\made-with-claude\\\\gateway\\\\gateway\\\\http_api.py\":*)",
+      "Bash(tasklist)",
+      "Bash(netstat:*)",
+      "Bash(wmic:*)",
+      "Bash(taskkill:*)"
     ]
   }
 }

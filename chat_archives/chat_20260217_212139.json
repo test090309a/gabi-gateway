@@ -1,0 +1,27 @@
+{
+  "id": "20260217_212139",
+  "start_time": "2026-02-17 21:16",
+  "end_time": "2026-02-17T21:21:39.141023",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hey",
+      "timestamp": "2026-02-17 21:16"
+    },
+    {
+      "role": "assistant",
+      "content": "GABI: Hallo! Wie kann ich dir heute helfen? Willst du eine Datei erstellen, etwas suchen oder etwas anderes?",
+      "timestamp": "2026-02-17 21:16"
+    }
+  ],
+  "message_count": 2,
+  "user_interests": {
+    "allgemein": 1
+  },
+  "preferences": {
+    "positive_feedback": 0,
+    "negative_feedback": 0,
+    "message_length": "kurz",
+    "active_time": "abends"
+  }
+}

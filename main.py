@@ -22,6 +22,7 @@ except ImportError:
 from gateway.config import config
 from gateway.http_api import router as api_router
 from gateway.ollama_client import ollama_client
+from gateway.daemon import get_daemon, start_daemon, stop_daemon
 from integrations.telegram_bot import get_telegram_bot
 from integrations.gmail_client import gmail_client
 
@@ -320,6 +321,21 @@ async def lifespan(app: FastAPI):
     else:
         logger.muted("Telegram: Deaktiviert")
 
+    # Gateway Daemon für autonome Aufgaben
+    try:
+        start_daemon()
+        logger.muted("Daemon: Aktiv")
+    except Exception as e:
+        logger.warning(f"Daemon: Nicht gestartet - {e}")
+
+    # AutoLearn Daemon starten
+    try:
+        daemon = get_daemon()
+        daemon.start()
+        logger.muted("Daemon: Autonomer Agent aktiv")
+    except Exception as e:
+        logger.warning(f"Daemon: Start fehlgeschlagen - {e}")
+
     # Gateway Mode Announcement
     if STEALTH_MODE:
         logger.warning("Mode: STEALTH - Minimale Ausgabe aktiviert")
@@ -345,6 +361,7 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.muted("Gateway: Shutdown...")
+    stop_daemon()
 
 
 # Create FastAPI app

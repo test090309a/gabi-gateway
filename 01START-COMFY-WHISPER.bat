@@ -21,8 +21,8 @@ cd /d M:\projekte_2026\claude-code\made-with-claude\gateway
 :: Nutze 'start /b' um es im Hintergrund dieses Fensters zu lassen oder ohne /b für ein extra Fenster
 start "GABIgateway Server" cmd /k "uvicorn main:app --reload --host 0.0.0.0 --port 8000"
 
-echo Warte auf Initialisierung (10 Sek)...
-timeout /t 10
+echo Warte auf Initialisierung, Browser Start in 20 Sek...
+timeout /t 20
 
 :: 3. Browser öffnen
 echo Öffne Dashboard...

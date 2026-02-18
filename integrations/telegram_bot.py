@@ -25,6 +25,45 @@ class TelegramBot:
         self._user_sessions = {}
         self.current_model = config.get("ollama.default_model", ollama_client.default_model)
 
+    def _escape_markdown(self, text: str) -> str:
+        """Escape problematic Markdown characters for Telegram."""
+        if not text:
+            return text
+        # Escape special Markdown characters
+        # Telegram Markdown v1: * _ ` [ ] ( ) ~ > # + - = | { } . !
+        special_chars = ['_', '*', '`', '[', ']', '(', ')', '~', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+        escaped = text
+        # Only escape if not already escaped (basic check)
+        for char in special_chars:
+            if char in escaped:
+                # Escape only if it looks like it could break markdown
+                escaped = escaped.replace(char, '\\' + char)
+        # Fix common issues with code blocks that span multiple lines with backticks
+        # Replace triple backticks with escaped version if inside code-like content
+        return escaped
+
+    def _escape_markdown(self, text: str) -> str:
+        """Escape problematic markdown characters for Telegram."""
+        if not text:
+            return text
+        # Telegram Markdown V2 special characters: _ * [ ] ( ) ~ ` > # + - = | { } . !
+        # We need to escape characters that are not meant to be markdown
+        import re
+        # Escape underscores in words but preserve markdown links
+        text = re.sub(r'(?<!\[)(?<!\])(_)(?!\[|\])', r'\_', text)
+        # Escape asterisks that aren't in code blocks
+        text = re.sub(r'(?<![`*])\*([^*]+)\*(?![`*])', r'\\\*\1\\*', text)
+        # Escape backticks that aren't in code blocks
+        text = re.sub(r'(?<!`)`(?!`)', r'\\`', text)
+        # Escape brackets that aren't for links
+        text = re.sub(r'(?<!\]\()\[([^\]]+)\](?!\()', r'\\[\1\\]', text)
+        # Remove or escape problematic code block markers
+        # If response contains unbalanced code blocks, remove them
+        code_block_count = text.count('```')
+        if code_block_count % 2 != 0:
+            text = text.replace('```', '')
+        return text
+
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "Hallo! Ich bin ein Ollama-Gateway-Bot. "
@@ -278,23 +317,35 @@ class TelegramBot:
                 # Führe Befehl aus
                 await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
                 cmd_result = await self._execute_shell_command(full_cmd)
-                
+
                 final_reply = f"{assistant_message}\n\n**Ausführung:**\n{cmd_result}"
             else:
                 final_reply = assistant_message
-            
+
             # Bot-Antwort mit Timestamp speichern
             messages.append({
-                "role": "assistant", 
+                "role": "assistant",
                 "content": final_reply,
                 "timestamp": datetime.now().isoformat()
             })
-            
-            await update.message.reply_text(final_reply, parse_mode='Markdown')
-            
+
+            # Escape problematic markdown entities before sending
+            safe_reply = self._escape_markdown(final_reply)
+            await update.message.reply_text(safe_reply, parse_mode='Markdown')
+
         except Exception as e:
             logger.error(f"Ollama error: {e}")
-            await update.message.reply_text(f"❌ Fehler: {str(e)}")
+            error_msg = str(e)
+            # Spezifischere Fehlermeldung für Verbindungsprobleme
+            if "connection" in error_msg.lower() or "winerror" in error_msg.lower() or " refused" in error_msg.lower():
+                await update.message.reply_text(
+                    "⚠️ **Ollama nicht erreichbar**\n\n"
+                    "Der Ollama-Server ist nicht verfügbar oder nicht gestartet.\n"
+                    "Bitte starte Ollama und versuche es erneut.",
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(f"❌ Fehler: {error_msg}")
             messages.pop()  # User-Nachricht wieder entfernen bei Fehler
 
 

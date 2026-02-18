@@ -1,4 +1,4 @@
-"""FastAPI HTTP endpoints."""
+"""FastAPI HTTP endpoints."""  # FIX: Model switching fix
 import re
 import logging
 import platform
@@ -15,6 +15,8 @@ import threading
 import uuid
 import socket
 import time
+import importlib
+import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Dict
@@ -31,6 +33,163 @@ from integrations.gmail_client import get_gmail_client
 from integrations.google_calendar_client import get_calendar_client
 from integrations.whisper_client import get_whisper_client
 from integrations.telegram_bot import get_telegram_bot
+from integrations.gui_controller import get_gui_controller
+from integrations.gui_controller import get_gui_controller
+
+# === DYNAMIC HOT-RELOAD SYSTEM ===
+# Registry für dynamisch geladene Integrationen
+_dynamic_integrations: Dict[str, Any] = {}
+_integrations_dir = Path(__file__).parent.parent / "integrations"
+_last_scan_times: Dict[str, float] = {}
+FILE_WATCH_INTERVAL = 5  # Sekunden zwischen Datei-Scans
+
+# Logger für Hot-Reload (wird nach dem Import initialisiert)
+_hotreload_logger = None
+
+def _get_hotreload_logger():
+    """Lazy Logger für Hot-Reload."""
+    global _hotreload_logger
+    if _hotreload_logger is None:
+        _hotreload_logger = logging.getLogger("GATEWAY.hotreload")
+    return _hotreload_logger
+
+# === HOT-RELOAD FUNKTIONEN ===
+def _scan_integrations_dir() -> List[Dict[str, Any]]:
+    """Scannt das integrations/ Verzeichnis nach neuen .py Dateien."""
+    if not _integrations_dir.exists():
+        return []
+
+    integrations = []
+    for py_file in _integrations_dir.glob("*.py"):
+        if py_file.name.startswith("_") or py_file.name == "__init__.py":
+            continue
+
+        try:
+            stat = py_file.stat()
+            mtime = stat.st_mtime
+            size = stat.st_size
+
+            integrations.append({
+                "name": py_file.stem,
+                "path": str(py_file),
+                "mtime": mtime,
+                "size": size,
+                "exists": True
+            })
+        except Exception as e:
+            _get_hotreload_logger().warning(f"Fehler beim Scannen von {py_file}: {e}")
+
+    return integrations
+
+def _load_integration_module(module_name: str) -> Optional[Any]:
+    """Lädt ein Integration-Modul dynamisch mit importlib."""
+    try:
+        # Bestehendes Modul aus Cache entfernen
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+
+        #try:
+        #    del sys.modules[f"integrations.{module_name}"]
+        #except KeyError:
+        #    pass
+
+        # Neues Modul importieren
+        module = importlib.import_module(f"integrations.{module_name}")
+        importlib.reload(module)
+
+        _get_hotreload_logger().info(f"Hot-Reload: Modul '{module_name}' geladen")
+        return module
+
+    except Exception as e:
+        _get_hotreload_logger().error(f"Hot-Reload Fehler für '{module_name}': {e}")
+        return None
+
+def _register_integration_routes(module_name: str, module: Any) -> bool:
+    """Registriert automatisch neue FastAPI-Routen aus einem Modul."""
+    try:
+        # Suche nach FastAPI-Routern im Modul
+        router = getattr(module, "router", None)
+        if router:
+            # Versuche app aus dem aktuellen Kontext zu holen
+            try:
+                from main import app as main_app
+                if router not in [r for r in main_app.routes if hasattr(r, 'path')]:
+                    main_app.include_router(router)
+                    _get_hotreload_logger().info(f"Neue Route registriert: /api/{module_name}")
+                    return True
+            except ImportError:
+                _get_hotreload_logger().warning("main_app konnte nicht importiert werden")
+                return False
+
+        # Suche nach eigenständigen Endpoint-Funktionen
+        for name, obj in inspect.getmembers(module, inspect.isfunction):
+            if name.startswith("router_") or name.endswith("_endpoint"):
+                _get_hotreload_logger().info(f"Funktion gefunden: {name}")
+                return True
+
+        return False
+
+    except Exception as e:
+        _get_hotreload_logger().error(f"Fehler beim Registrieren von Routen für '{module_name}': {e}")
+        return False
+
+def check_and_reload_integrations() -> Dict[str, Any]:
+    """Prüft auf neue/geänderte Integrationen und lädt sie dynamisch."""
+    current_integrations = _scan_integrations_dir()
+    reloads = []
+
+    for integration in current_integrations:
+        name = integration["name"]
+        path = integration["path"]
+        mtime = integration["mtime"]
+
+        # Neue oder geänderte Datei?
+        last_time = _last_scan_times.get(name, 0)
+        if mtime > last_time:
+            logger.info(f"Hot-Reload: Neue/geänderte Integration erkannt: {name}")
+
+            # Modul laden
+            module = _load_integration_module(name)
+            if module:
+                # Routen registrieren
+                _register_integration_routes(name, module)
+
+                # In Registry speichern
+                _dynamic_integrations[name] = {
+                    "module": module,
+                    "path": path,
+                    "loaded_at": time.time()
+                }
+
+                reloads.append(name)
+
+            _last_scan_times[name] = mtime
+
+    return {"reloaded": reloads, "total": len(_dynamic_integrations)}
+
+# Background Task für automatische Integration-Überwachung
+def _start_integration_watcher():
+    """Startet den Hintergrund-Thread für Integration-Überwachung."""
+    def watcher():
+        while True:
+            try:
+                check_and_reload_integrations()
+            except Exception as e:
+                logger.error(f"Integration-Watcher Fehler: {e}")
+            time.sleep(FILE_WATCH_INTERVAL)
+
+    watcher_thread = threading.Thread(target=watcher, daemon=True, name="Integration-Watcher")
+    watcher_thread.start()
+    logger.info("Integration-Watcher gestartet")
+
+# Starte Watcher beim Import - verzögert bis main.app existiert
+# (Wird in main.py beim App-Start aufgerufen)
+def _init_integration_watcher():
+    """Initialisiert den Integration-Watcher (muss nach App-Start aufgerufen werden)."""
+    try:
+        _start_integration_watcher()
+    except Exception as e:
+        _get_hotreload_logger().warning(f"Integration-Watcher konnte nicht gestartet werden: {e}")
 # --- VARIABLEN & KONFIGURATION ---
 # Reduziere httpx/uvicorn Logging für sauberere Ausgabe
 logging.getLogger('httpx').setLevel(logging.WARNING)
@@ -396,7 +555,12 @@ def _auto_select_model(
         prefer_fast = True
 
     # Gateway can answer self-check style prompts with fast model.
+    # FIX: Aber wenn der Benutzer ein Modell explizit ausgewählt hat, verwende das!
     if self_question:
+        if requested_model and requested_model in available:
+            # Benutzer hat Modell explizit gewählt - verwende es!
+            _progress_add(progress_id, f"Model-Routing: Benutzer-Modell {requested_model}", "fa-code-branch")
+            return requested_model
         fast_self_model = _pick_fast_model(available)
         if fast_self_model:
             logger.info(f"Model-Routing: self-question -> {fast_self_model}")
@@ -420,11 +584,11 @@ def _auto_select_model(
                 _progress_add(progress_id, f"Model-Routing: Upgrade {requested_model} -> {upgraded}", "fa-code-branch")
                 return upgraded
         if prefer_fast and req_size >= 7.0:
-            fast_model = _pick_fast_model(available)
-            if fast_model:
-                logger.info(f"Model-Routing: fast-preference -> {requested_model} -> {fast_model}")
-                _progress_add(progress_id, f"Model-Routing: fast-preference -> {fast_model}", "fa-code-branch")
-                return fast_model
+            # BEHOBEN: Wenn Benutzer ein Modell explizit auswählt, verwende es!
+            # Das automatische Downgrade auf schnelle Modelle wird übersprungen,
+            # damit das gewählte Modell verwendet wird.
+            _progress_add(progress_id, f"Model-Routing: fixiertes Modell {requested_model}", "fa-code-branch")
+            return requested_model
         _progress_add(progress_id, f"Model-Routing: fixiertes Modell {requested_model}", "fa-code-branch")
         return requested_model
 
@@ -1824,7 +1988,7 @@ class ChatMemory:
             self.update_heartbeat()
             logger.info(f"✅ Auto-Exploration mit Pfad-Analyse abgeschlossen: {timestamp}")
             # Auch eine kurze Bestätigung für den Chat
-            print(f"\n🔍 Auto-Exploration abgeschlossen! Siehe MEMORY.md für Details.\n")
+            # print(f"\n🔍 Auto-Exploration abgeschlossen! Siehe MEMORY.md für Details.\n")
         except Exception as e:
             logger.error(f"❌ Exploration Fehler: {e}")
             with open(MEMORY_FILE, "a", encoding="utf-8") as f:
@@ -2331,17 +2495,26 @@ Ein neuer Chat wurde gestartet.
         else:
             return ""
 
-def select_best_model(prompt: str) -> str:
-    """Wählt automatisch das passende Modell basierend auf der Komplexität."""
-    # 1. Wenn der Prompt sehr kurz ist -> Schnelles, kleines Modell
-    if len(prompt) < 100:
-        return "sam860/LFM2:2.6b"  # Dein schnelles LFM
-    
-    # 2. Wenn nach Code gefragt wird -> Ein spezialisiertes Modell (falls vorhanden)
-    if any(word in prompt.lower() for word in ["code", "python", "skript", "programm"]):
-        return "codellama" # Beispiel
-    
-    # 3. Default: Das starke Allround-Modell aus deiner Config
+def select_best_model(prompt: str, requested_model: str = None) -> str:
+    """
+    Wählt automatisch das passende Modell basierend auf der Komplexität.
+
+    Args:
+        prompt: Die Benutzer-Eingabe
+        requested_model: Explizit angefordertes Modell (hat Vorrang!)
+
+    Returns:
+        Modell-Name
+    """
+    # 1. Wenn der Benutzer ein Modell explizit angegeben hat -> IMMER verwenden!
+    if requested_model and requested_model.strip() and requested_model != "__AUTO__":
+        return requested_model.strip()
+
+    # 2. Bei __AUTO__: Default-Modell verwenden (NICHT das schnelle!)
+    if requested_model == "__AUTO__" or requested_model is None:
+        return config.get("ollama.default_model", "llama3")
+
+    # 3. Default: Das starke Allround-Modell
     return config.get("ollama.default_model", "llama3")
 
 # Globale Memory-Instanz
@@ -2777,7 +2950,7 @@ async def chat_with_ollama(request: ChatRequest, token: str = Header(None)):
         return {
             "status": "error", 
             "message": str(e),
-            "reply": f"Entschuldigung, es ist ein Fehler aufgetreten: {str(e)}",
+            "reply": f" {str(e)}",
             "request_id": request_id,
         }
     finally:
@@ -4170,6 +4343,61 @@ async def transcribe_audio(
         logger.error(f"Whisper transcribe error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# === VOICE API ALIAS ===
+@router.post("/api/voice/transcribe")
+async def voice_transcribe(
+    file: UploadFile = File(...),
+    language: Optional[str] = None,
+    _api_key: str = Depends(verify_api_key),
+) -> dict:
+    """
+    Voice Transcription Endpoint - Alias für /api/whisper/transcribe/sync.
+    Nimmt Audio-Dateien entgegen, transkribiert sie mit Whisper und
+    gibt das Ergebnis zurück das in den Chat-Kontext eingespeist werden kann.
+    """
+    tmp_path = None
+    try:
+        whisper = get_whisper_client()
+        if not whisper.is_available():
+            raise HTTPException(status_code=503, detail="Whisper server not available")
+
+        # Temporäre Datei erstellen
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix if file.filename else '.wav') as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        filename = file.filename or 'audio.wav'
+        logger.info(f"🎤 Voice Transcribe: {filename} ({len(content)} bytes)")
+
+        # Transkribieren
+        result = whisper.transcribe_file(tmp_path, language)
+
+        if result.get("status") == "success":
+            return {
+                "status": "success",
+                "text": result.get("text", ""),
+                "language": result.get("language", "unknown"),
+                "duration": result.get("duration", 0),
+                "confidence": result.get("result", {}).get("avg_logprob", None)
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Transcription failed"))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Voice transcribe error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Aufräumen
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+
 @router.post("/api/whisper/transcribe/sync")
 async def transcribe_audio_sync(
     file: UploadFile = File(...),
@@ -4247,6 +4475,20 @@ async def transcribe_audio_sync(
             "status": "error",
             "error": str(e)
         }
+
+# Alias für /api/voice/transcribe (zusätzlicher Endpunkt)
+@router.post("/api/voice/transcribe")
+async def voice_transcribe(
+    file: UploadFile = File(...),
+    language: Optional[str] = None,
+    _api_key: str = Depends(verify_api_key),
+) -> dict:
+    """
+    Voice transcription endpoint - alias für /api/whisper/transcribe/sync.
+    Nimmt Audio-Dateien entgegen und transkribiert sie mit Whisper.
+    """
+    # Delegiere an den bestehenden sync-Endpoint
+    return await transcribe_audio_sync(file, language, _api_key)
 
 # ============ Telegram Endpoints ============
 @router.get("/api/telegram/status")
@@ -5260,8 +5502,9 @@ async def chat_endpoint(data: dict):
     if not prompt:
         return {"status": "error", "response": "Keine Nachricht empfangen."}
 
-    # 1. Automatische Modell-Auswahl
-    selected_model = select_best_model(prompt)
+    # 1. Automatische Modell-Auswahl (mit explizitem Modell-Vorrang)
+    requested_model = data.get("model")  # Optional: vom Client übergeben
+    selected_model = select_best_model(prompt, requested_model)
     
     try:
         # GABI antwortet
@@ -5397,3 +5640,428 @@ async def get_current_model(_api_key: str = Depends(verify_api_key)):
         "status": "success",
         "current_model": ollama_client.default_model
     }
+
+
+# === GABI Autonomes Agenten-Framework ===
+
+@router.post("/api/daemon/task")
+async def run_daemon_task(
+    task_description: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Führt eine Task manuell aus."""
+    from gateway.daemon import get_daemon
+
+    daemon = get_daemon()
+    result = daemon.run_task_manually(task_description)
+
+    return {
+        "status": "success",
+        "result": result
+    }
+
+
+@router.get("/api/daemon/status")
+async def get_daemon_status(_api_key: str = Depends(verify_api_key)):
+    """Gibt den Status des Daemons zurück."""
+    from gateway.daemon import get_daemon
+
+    daemon = get_daemon()
+    return {
+        "status": "success",
+        "running": daemon.running,
+        "interval": daemon.interval
+    }
+
+
+@router.post("/api/skill/create")
+async def create_skill(
+    requirement: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Erstellt einen neuen Skill basierend auf einer Anforderung."""
+    from gateway.skill_factory import create_skill
+
+    result = create_skill(requirement)
+    return {
+        "status": "success" if result.get("success") else "error",
+        "result": result
+    }
+
+
+@router.get("/api/memory/autolearn")
+async def get_autolearn_memory(_api_key: str = Depends(verify_api_key)):
+    """Gibt das AutoLearn Memory zurück."""
+    from gateway.memory_extensions import get_memory
+
+    memory = get_memory()
+    return {
+        "status": "success",
+        "skills": memory.get_all_skills(),
+        "active_skills": memory.get_active_skills()
+    }
+
+
+@router.get("/api/memory/has-skill/{skill_identifier}")
+async def check_skill(
+    skill_identifier: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Prüft ob GABI einen Skill hat."""
+    from gateway.memory_extensions import has_skill
+
+    return {
+        "status": "success",
+        "has_skill": has_skill(skill_identifier)
+    }
+
+
+@router.post("/api/security/validate")
+async def validate_code(
+    code: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Validiert Code durch das Security Gate."""
+    from gateway.security_gate import validate_code
+
+    result = validate_code(code)
+    return {
+        "status": "success",
+        "result": result
+    }
+
+
+# === DAEMON & AUTONOMOUS AGENT API ===
+
+@router.post("/api/daemon/task")
+async def create_task(
+    requirement: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Erstellt und führt eine neue Task aus (manuell)."""
+    try:
+        from gateway.daemon import get_daemon
+
+        daemon = get_daemon()
+        result = daemon.run_task_manually(requirement)
+
+        return {
+            "status": "success",
+            "result": result
+        }
+    except Exception as e:
+        logger.error(f"Fehler bei Task-Erstellung: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/daemon/status")
+async def get_daemon_status(_api_key: str = Depends(verify_api_key)):
+    """Gibt den Status des Daemons zurück."""
+    try:
+        from gateway.daemon import get_daemon
+
+        daemon = get_daemon()
+
+        return {
+            "status": "success",
+            "running": daemon.running,
+            "interval": daemon.interval,
+            "thread": str(daemon.thread) if daemon.thread else None
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Abrufen des Daemon-Status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/daemon/start")
+async def start_daemon(_api_key: str = Depends(verify_api_key)):
+    """Startet den Daemon."""
+    try:
+        from gateway.daemon import start_daemon as start
+
+        start()
+
+        return {
+            "status": "success",
+            "message": "Daemon gestartet"
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Starten des Daemons: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/daemon/stop")
+async def stop_daemon(_api_key: str = Depends(verify_api_key)):
+    """Stoppt den Daemon."""
+    try:
+        from gateway.daemon import stop_daemon as stop
+
+        stop()
+
+        return {
+            "status": "success",
+            "message": "Daemon gestoppt"
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Stoppen des Daemons: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/autolearn/skills")
+async def get_autolearn_skills(_api_key: str = Depends(verify_api_key)):
+    """Gibt alle AutoLearn Skills zurück."""
+    try:
+        from gateway.memory_extensions import get_memory
+
+        memory = get_memory()
+        skills = memory.get_all_skills()
+
+        return {
+            "status": "success",
+            "skills": skills,
+            "count": len(skills)
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Abrufen der Skills: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/autolearn/skill/{skill_name}")
+async def get_skill(
+    skill_name: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Gibt einen spezifischen Skill zurück."""
+    try:
+        from gateway.memory_extensions import get_memory
+
+        memory = get_memory()
+        skill = memory.find_skill(skill_name)
+
+        if not skill:
+            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' nicht gefunden")
+
+        return {
+            "status": "success",
+            "skill": skill
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Fehler beim Abrufen des Skills: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/autolearn/check")
+async def check_skill(
+    skill_identifier: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Prüft ob GABI bereits einen Skill für etwas hat."""
+    try:
+        from gateway.memory_extensions import has_skill
+
+        exists = has_skill(skill_identifier)
+
+        return {
+            "status": "success",
+            "skill_identifier": skill_identifier,
+            "has_skill": exists
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Prüfen des Skills: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ GUI Controller Endpoints ============
+
+@router.get("/api/gui/status")
+async def gui_status(_api_key: str = Depends(verify_api_key)) -> dict:
+    """Check GUI Controller availability."""
+    try:
+        gui = get_gui_controller()
+        status = gui.check_available()
+        return {"status": "success", **status}
+    except Exception as e:
+        logger.error(f"GUI status error: {e}")
+        return {"status": "error", "error": str(e)}
+
+@router.get("/api/gui/screensize")
+async def gui_screen_size(_api_key: str = Depends(verify_api_key)) -> dict:
+    """Get screen dimensions."""
+    try:
+        gui = get_gui_controller()
+        return gui.get_screen_size()
+    except Exception as e:
+        logger.error(f"GUI screensize error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/screenshot")
+async def gui_screenshot(
+    filename: Optional[str] = None,
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Take a screenshot."""
+    try:
+        gui = get_gui_controller()
+        return gui.screen_capture(filename)
+    except Exception as e:
+        logger.error(f"GUI screenshot error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/open")
+async def gui_open_app(
+    app_name: str = Form(...),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Open an application via Windows Search."""
+    try:
+        gui = get_gui_controller()
+        result = gui.win_search_and_open(app_name)
+        
+        # Feedback in Memory dokumentieren
+        if result.get("success"):
+            _log_gui_action("open_app", app_name, result)
+        
+        return result
+    except Exception as e:
+        logger.error(f"GUI open error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.get("/api/gui/windows")
+async def gui_window_list(_api_key: str = Depends(verify_api_key)) -> dict:
+    """List all open windows."""
+    try:
+        gui = get_gui_controller()
+        return gui.get_window_titles()
+    except Exception as e:
+        logger.error(f"GUI windows error: {e}")
+        return {"success": False, "error": str(e), "windows": []}
+
+@router.post("/api/gui/click")
+async def gui_click(
+    x: int = Form(...),
+    y: int = Form(...),
+    button: str = Form("left"),
+    double: bool = Form(False),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Perform a safe mouse click."""
+    try:
+        gui = get_gui_controller()
+        result = gui.safe_click(x, y, button, double)
+        
+        if result.get("success"):
+            _log_gui_action("click", f"({x}, {y})", result)
+        
+        return result
+    except Exception as e:
+        logger.error(f"GUI click error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/type")
+async def gui_type_text(
+    text: str = Form(...),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Type text."""
+    try:
+        gui = get_gui_controller()
+        return gui.type_text(text)
+    except Exception as e:
+        logger.error(f"GUI type error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/press")
+async def gui_press_key(
+    key: str = Form(...),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Press a key."""
+    try:
+        gui = get_gui_controller()
+        return gui.press_key(key)
+    except Exception as e:
+        logger.error(f"GUI press error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/hotkey")
+async def gui_hotkey(
+    keys: List[str] = Form(...),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Press a key combination."""
+    try:
+        gui = get_gui_controller()
+        return gui.hotkey(*keys)
+    except Exception as e:
+        logger.error(f"GUI hotkey error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/find-icon")
+async def gui_find_icon(
+    template_path: str = Form(...),
+    threshold: float = Form(0.8),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Find an icon on screen."""
+    try:
+        gui = get_gui_controller()
+        return gui.find_icon_on_screen(template_path, threshold)
+    except Exception as e:
+        logger.error(f"GUI find icon error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/click-icon")
+async def gui_click_icon(
+    template_path: str = Form(...),
+    threshold: float = Form(0.8),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Find and click an icon on screen."""
+    try:
+        gui = get_gui_controller()
+        result = gui.click_icon(template_path, threshold)
+        
+        if result.get("success"):
+            _log_gui_action("click_icon", template_path, result)
+        
+        return result
+    except Exception as e:
+        logger.error(f"GUI click icon error: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def _log_gui_action(action: str, target: str, result: dict):
+    """Dokumentiert GUI-Aktionen in MEMORY.md."""
+    try:
+        from datetime import datetime
+        import os
+        
+        memory_path = Path("MEMORY.md")
+        if not memory_path.exists():
+            return
+        
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Prüfen ob Memory-Datei recent genug ist (nicht zu groß)
+        if memory_path.stat().st_size > 10_000_000:  # 10MB Limit
+            logger.warning("MEMORY.md zu groß, keine neuen Einträge")
+            return
+        
+        content = memory_path.read_text(encoding="utf-8")
+        
+        entry = f"""
+## GUI-Aktion [{timestamp}]
+- **Aktion**: {action}
+- **Ziel**: {target}
+- **Erfolg**: {'Ja' if result.get('success') else 'Nein'}
+- **Details**: {result.get('message', result.get('error', 'N/A'))}
+"""
+        
+        # Am Ende hinzufügen
+        memory_path.write_text(content + entry, encoding="utf-8")
+        logger.info(f"GUI-Aktion dokumentiert: {action} -> {target}")
+        
+    except Exception as e:
+        logger.error(f"Fehler beim Dokumentieren der GUI-Aktion: {e}")

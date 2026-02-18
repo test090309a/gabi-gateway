@@ -1,0 +1,2988 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GABI Gateway – Admin Dashboard v1.0.2</title>
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23ff2a2a'/%3E%3Ctext x='50' y='75' font-size='70' text-anchor='middle' fill='white' font-family='Arial'%3EG%3C/text%3E%3C/svg%3E">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Markdown Renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-tertiary: #1a1a1a;
+            --accent: #ff2a2a;
+            --accent-hover: #ff4444;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-muted: #666666;
+            --border: #2a2a2a;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --thinking-bg: rgba(255, 42, 42, 0.1);
+            --header-offset: 288px;
+        }
+
+        * {
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Buttons */
+        .btn {
+            border: 1px solid var(--accent);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            background: transparent;
+            color: var(--text-primary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            color: black;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 42, 42, 0.2);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-active {
+            background: var(--accent) !important;
+            color: black !important;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        .btn-executing {
+            border: 2px solid var(--accent) !important;
+            box-shadow: 0 0 15px var(--accent) !important;
+        }
+
+        /* Model Select Dropdown */
+        .model-select {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+            padding: 0.25rem 2rem 0.25rem 0.75rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23ff2a2a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+            background-size: 1rem;
+        }
+
+        .model-select:hover {
+            border-color: var(--accent);
+        }
+
+        .model-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255, 42, 42, 0.2);
+        }
+
+        .model-select option {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        /* Chat Messages */
+        .message-user {
+            background: linear-gradient(135deg, var(--accent), #ff4d4d);
+            color: white;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem 1rem 0 1rem;
+            max-width: 80%;
+            margin-left: auto;
+            box-shadow: 0 2px 8px rgba(255, 42, 42, 0.2);
+        }
+
+        .message-assistant {
+            background: var(--bg-tertiary);
+            border-left: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 0 1rem 1rem 1rem;
+            max-width: 80%;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Thinking Steps - Im Chat integriert */
+        .thinking-steps-container {
+            background: var(--thinking-bg);
+            border-left: 3px solid var(--accent);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-family: 'Fira Code', monospace;
+        }
+
+        .thinking-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.25rem 0;
+            border-bottom: 1px dashed rgba(255, 42, 42, 0.3);
+        }
+
+        .thinking-head {
+            cursor: pointer;
+            color: var(--accent);
+            font-weight: 600;
+            list-style: none;
+            margin-bottom: 0.25rem;
+        }
+
+        .thinking-step details {
+            width: 100%;
+        }
+
+        .thinking-step summary {
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .thinking-step pre {
+            margin-top: 0.4rem;
+            padding: 0.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 0.35rem;
+            white-space: pre-wrap;
+            font-size: 0.72rem;
+            max-height: 220px;
+            overflow: auto;
+        }
+
+        .thinking-step:last-child {
+            border-bottom: none;
+        }
+
+        .thinking-step i {
+            color: var(--accent);
+            width: 20px;
+        }
+
+        .thinking-step .step-time {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            margin-left: auto;
+        }
+
+        /* Terminal */
+        .terminal {
+            background: #000000;
+            color: #00ff66;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .terminal-output {
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .terminal-input-line {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #00ff66;
+        }
+
+        .terminal-prompt {
+            color: #00ff66;
+            font-weight: bold;
+        }
+
+        /* Loading Animation */
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--bg-tertiary);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loader-dots {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .loader-dots div {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .loader-dots div:nth-child(1) { animation-delay: -0.32s; }
+        .loader-dots div:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-online {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            max-width: 980px;
+            width: min(96vw, 980px);
+            max-height: 88vh;
+            overflow: auto;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            position: relative;
+            margin: auto;
+        }
+
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-tertiary);
+            color: var(--accent);
+        }
+
+        /* Chat Input Area */
+        .chat-input-container {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            resize: none;
+            flex: 1;
+            font-family: inherit;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255, 42, 42, 0.2);
+        }
+
+        .send-btn {
+            background: var(--accent);
+            color: black;
+            border: none;
+            border-radius: 1rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            height: fit-content;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px var(--accent);
+        }
+
+        .send-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Grid Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            height: calc(100vh - 180px);
+            overflow: hidden;
+        }
+
+        .main-grid.shell-hidden {
+            grid-template-columns: 1fr;
+        }
+
+        .main-grid.shell-visible {
+            grid-template-columns: 2fr 1fr;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid.shell-visible {
+                grid-template-columns: 1fr;
+            }
+
+            .main-grid {
+                height: calc(100vh - 210px);
+                padding: 1rem;
+            }
+        }
+
+        #chat-section {
+            display: flex;
+            flex-direction: column;
+            min-height: 60vh;
+            height: 60vh;
+            margin-top: 3vh;
+        }
+
+        #chat-history {
+            flex: 1;
+            min-height: 220px;
+            height: auto !important;
+        }
+
+        .response-separator {
+            border-top: 1px solid rgba(255, 42, 42, 0.45);
+            margin: 1rem 0;
+        }
+
+        /* Mail Panel */
+        .mail-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            z-index: 55;
+        }
+
+        #mail-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            position: fixed;
+            z-index: 55;
+            width: 100%;
+        }
+
+        /* Tool Panel */
+        .tool-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            z-index: 55;
+        }
+
+        .toolbar-sticky {
+            /* position: sticky; 
+            top: 0;*/
+            z-index: 50;
+            background: var(--bg-secondary);
+        }
+
+        /* Tool Panel & Mail Panel - normales Flow-Layout */
+        #tool-panel, #mail-panel {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        #tool-panel.hidden, #mail-panel.hidden {
+            display: none;
+        }
+
+        .message-assistant.gateway-muted {
+            border-left-color: #4b5563;
+            background: #121417;
+            opacity: 0.86;
+        }
+
+        .message-assistant.gateway-muted .prose,
+        .message-assistant.gateway-muted .prose p {
+            color: var(--text-muted);
+        }
+
+        .message-meta-line {
+            margin-top: 0.5rem;
+            font-size: 0.72rem;
+            color: rgba(255, 255, 255, 0.68);
+        }
+
+        #chat-section.drop-active {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(255, 42, 42, 0.25);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Typing Indicator */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+.message-system {
+    background: rgba(255, 42, 42, 0.1);
+    border-radius: 4px;
+    letter-spacing: 1px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.8; }
+    50% { opacity: 1; }
+    100% { opacity: 0.8; }
+}
+
+
+/* Search Results Styling */
+.search-results {
+    margin-top: 1rem;
+}
+
+.search-results a {
+    transition: all 0.2s ease;
+}
+
+.search-results a:hover {
+    transform: translateX(2px);
+}
+
+.search-results .border {
+    transition: all 0.2s ease;
+}
+
+.search-results .border:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(255, 42, 42, 0.1);
+}
+
+/* Link Styling */
+a[target="_blank"] {
+    position: relative;
+    padding-right: 4px;
+}
+
+a[target="_blank"] i {
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+a[target="_blank"]:hover i {
+    opacity: 1;
+}
+
+/* Message Assistant Styling */
+.message-assistant {
+    background: var(--bg-tertiary);
+    border-left: 4px solid var(--accent);
+    padding: 1.25rem;
+    border-radius: 0 1rem 1rem 1rem;
+    max-width: 100%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    width: 100%;
+}
+
+.message-assistant .prose {
+    max-width: 100%;
+}
+
+.message-assistant .prose pre {
+    background: #000000;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+}
+
+.message-assistant .prose code {
+    color: #00ff66;
+    background: #1a1a1a;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+}
+#main-toolbar {
+    border:0px solid grey;
+    /* height:110px !important; */
+    position: sticky !important;
+}
+    </style>
+</head>
+<body class="antialiased">
+
+<!-- HEADER -->
+<header id="app-header" class="border-b border-[var(--border)] bg-[var(--bg-secondary)] sticky top-0 z-50">
+    <div class="container mx-auto px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <!-- Logo & Title -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[var(--accent)] rounded-lg flex items-center justify-center">
+                    <i class="fas fa-robot text-black text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-[var(--accent)]">GABI Gateway</h1>
+                    <p class="text-xs text-[var(--text-muted)]">Admin Dashboard v1.0.2</p>
+                </div>
+            </div>
+
+            <!-- System Info -->
+            <div id="system-info" class="flex flex-wrap items-center gap-3 text-sm max-w-3xl">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-microchip text-[var(--text-muted)]"></i>
+                    <span id="os-info" class="text-[var(--text-secondary)]">System wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-database text-[var(--text-muted)]"></i>
+                    <span id="storage-info" class="text-[var(--text-secondary)]">-</span>
+                </div>
+                <!-- Whisper Status -->
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-microphone text-[var(--text-muted)]"></i>
+                    <span id="whisper-status" class="text-[var(--text-secondary)]">Whisper wird geladen...</span>
+                </div>
+                <!-- Telegram Status -->
+                <div class="flex items-center gap-2">
+                    <i class="fab fa-telegram text-[var(--text-muted)]"></i>
+                    <span id="telegram-status" class="text-[var(--text-secondary)]">Telegram wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-envelope text-[var(--text-muted)]"></i>
+                    <span id="gmail-status" class="text-[var(--text-secondary)]">Gmail wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="far fa-calendar-alt text-[var(--text-muted)]"></i>
+                    <span id="calendar-status" class="text-[var(--text-secondary)]">Kalender wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-palette text-[var(--text-muted)]"></i>
+                    <span id="comfy-status" class="text-[var(--text-secondary)]">Comfy/Invoke wird geladen...</span>
+                </div>
+            </div>
+
+            <!-- LLM Info & Model Selector -->
+            <div class="flex items-center gap-3">
+                <div class="text-right">
+                    <div class="flex items-center gap-2" style="display: block;">
+                        <i class="fas fa-brain text-[var(--accent)]"></i>
+                        <select id="model-selector" class="model-select">
+                            <option value="">Modelle laden...</option>
+                        </select>
+                    </div>
+                    <div id="llm-status" class="text-xs flex items-center gap-1 mt-1" style="display: block;">
+                        <span class="status-badge status-offline">
+                            <i class="fas fa-circle text-xs"></i>
+                            Prüfe Verbindung...
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- TOOLBAR -->
+<div id="main-toolbar" class="toolbar-sticky bg-[var(--bg-secondary)] border-b border-[var(--border)] px-4 py-2">
+    <div class="container mx-auto flex flex-wrap items-center justify-between gap-2">
+        <div class="flex gap-2">
+            <button class="btn btn-sm" onclick="toggleTools()">
+                <i class="fas fa-tools"></i>
+                Tools
+            </button>
+            <!--<button class="btn btn-sm" onclick="toggleShell()">
+                <i class="fas fa-terminal"></i>
+                Shell
+            </button> -->
+            <button class="btn btn-sm" onclick="toggleMails()">
+                <i class="fas fa-envelope text-[var(--accent)]"></i>
+                Mails
+            </button>
+        </div>
+        <div class="flex gap-2 text-xs text-[var(--text-muted)]">
+            <span><i class="far fa-clock"></i> <span id="current-time"></span></span>
+        </div>
+    </div>
+</div>
+
+</header>
+
+
+
+
+<!-- TOOL PANEL -->
+<div id="tool-panel" class="tool-panel hidden">
+    <button id="btn-memory" class="btn btn-sm" onclick="openModal('/api/memory', '📚 Memory', 'memory')">
+        <i class="fas fa-brain"></i> Memory
+    </button>
+    <button id="btn-skills" class="btn btn-sm" onclick="openModal('/api/memory', '🛠 Skills', 'skills')">
+        <i class="fas fa-code"></i> Skills
+    </button>
+    <button id="btn-heartbeat" class="btn btn-sm" onclick="openModal('/api/memory', '💓 Heartbeat', 'heartbeat')">
+        <i class="fas fa-heartbeat"></i> Heartbeat
+    </button>
+    <button class="btn btn-sm" onclick="showMemoryStats()">
+        <i class="fas fa-chart-bar"></i> Statistiken
+    </button>
+    <button class="btn btn-sm" onclick="archiveMemory()">
+        <i class="fas fa-archive"></i> Archivieren
+    </button>
+    <button class="btn btn-sm" onclick="resetMemory()">
+        <i class="fas fa-trash-alt"></i> Zurücksetzen
+    </button>
+    <button class="btn btn-sm" onclick="generateSoul()">
+        <i class="fas fa-magic"></i> Soul generieren
+    </button>
+    <button class="btn btn-sm" onclick="openModal('/api/soul', '🧬 Soul', 'content')">
+        <i class="fas fa-dna"></i> Soul anzeigen
+    </button>
+    <button class="btn btn-sm" onclick="openModal('/api/identity', '🆔 Identity', 'identity')">
+        <i class="fas fa-id-card"></i> Identity
+    </button>
+    <button id="btn-whisper" class="btn btn-sm" onclick="openWhisperModal()">
+        <i class="fas fa-microphone"></i> Whisper
+    </button>
+    <button id="btn-shell" class="btn btn-sm" onclick="openShellModal()">
+        <i class="fas fa-terminal"></i> Shell
+    </button>
+    <button id="btn-attach" class="btn btn-sm" onclick="document.getElementById('file-input').click()">
+        <i class="fas fa-paperclip"></i> Datei anhängen
+    </button>
+    <input type="file" id="file-input" class="hidden" multiple onchange="handleFileUpload(this.files)">
+</div>
+
+<!-- MAIL PANEL -->
+<div id="mail-panel" class="hidden bg-[var(--bg-secondary)] border-b border-[var(--border)] px-4 py-3">
+    <div class="container mx-auto">
+        <div class="grid gap-3 lg:grid-cols-[360px_1fr]">
+            <div class="bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg overflow-hidden">
+                <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+                    <h3 class="text-sm font-semibold text-[var(--accent)]"><i class="fas fa-envelope mr-2"></i>Inbox</h3>
+                    <div class="flex gap-2">
+                        <button class="btn btn-sm" onclick="refreshMailPanel()"><i class="fas fa-sync"></i> Aktualisieren</button>
+                        <button class="btn btn-sm" onclick="loadCalendarEvents()"><i class="far fa-calendar-alt"></i> Kalender</button>
+                    </div>
+                </div>
+                <div id="mail-display-area" class="max-h-80 overflow-y-auto text-sm p-2">
+                    <span class="text-[var(--text-muted)]">Suche nach neuen Nachrichten...</span>
+                </div>
+            </div>
+            <div id="mail-detail-panel" class="bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg p-3">
+                <div class="text-[var(--text-muted)] text-sm">Wähle links eine Mail aus, um Details zu sehen und zu antworten.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MAIN GRID -->
+<main id="main-grid" class="main-grid">
+    <!-- CHAT SECTION -->
+    <section id="chat-section" class="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] overflow-hidden">
+        <div class="p-4 border-b border-[var(--border)] flex justify-between items-center">
+            <h2 class="font-semibold flex items-center gap-2">
+                <i class="fas fa-comments text-[var(--accent)]"></i>
+                Chat
+            </h2>
+            <div id="chat-meta" class="text-xs text-[var(--text-muted)]"></div>
+        </div>
+
+<!-- Chat History -->
+<div id="chat-history" class="h-[60vh] overflow-y-auto p-4 space-y-4 relative">
+    <button id="scroll-down-btn" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-40
+         bg-gray-700 hover:bg-gray-600 text-white rounded-full
+         px-4 py-2 shadow-lg
+         flex items-center gap-2
+         transition text-sm" onclick="scrollToBottom()" title="Nach unten scrollen">
+        <i class="fas fa-arrow-down"></i> Nach unten
+    </button>
+    <div class="text-[var(--text-muted)] italic flex items-center gap-2">
+        <i class="fas fa-info-circle"></i>
+        Bereit. Verwende /help für alle Befehle (Chat, Shell, Gmail, Telegram, Auto-Exploration)
+    </div>
+</div>
+
+        <!-- Chat Input Area MIT SENDE-BUTTON -->
+        <div class="p-4 border-t border-[var(--border)]">
+            <div class="chat-input-container relative">
+                <textarea id="chat-input" 
+                          class="chat-input" 
+                          rows="2"
+                          placeholder="Nachricht eingeben... (Enter = senden, Shift+Enter = neue Zeile)"></textarea>
+                <div id="file-suggest" class="hidden absolute left-0 right-28 bottom-full mb-2 max-h-52 overflow-y-auto bg-[var(--bg-tertiary)] border border-[var(--border)] rounded-lg p-1 z-50 text-sm"></div>
+                <button id="send-button" class="send-btn" onclick="sendChat()">
+                    <i class="fas fa-paper-plane"></i>
+                    Senden
+                </button>
+                <button id="stop-button" class="btn" onclick="stopCurrentTask()" title="Aktuelle Anfrage stoppen" disabled>
+                    <i class="fas fa-stop"></i>
+                    Stop
+                </button>
+            </div>
+            <div class="flex justify-between items-center mt-2 text-xs text-[var(--text-muted)]">
+                <div class="flex items-center gap-4">
+                    <span><i class="fas fa-robot"></i> GABI Gateway</span>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- SHELL SECTION -->
+    <section id="shell-section" class="hidden bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] overflow-hidden">
+        <div class="p-4 border-b border-[var(--border)] flex justify-between items-center">
+            <h2 class="font-semibold flex items-center gap-2">
+                <i class="fas fa-terminal text-[var(--accent)]"></i>
+                Admin Shell
+            </h2>
+            <span class="text-xs bg-[var(--bg-tertiary)] px-2 py-1 rounded">Windows</span>
+        </div>
+
+        <div class="terminal">
+            <div id="shell-output" class="terminal-output">
+                <div>Microsoft Windows [Version 10.0.22631]</div>
+                <div>GABI Shell v1.0.2</div>
+                <div>Geben Sie einen Befehl ein (ls, dir, date, echo, etc.)</div>
+                <div>&nbsp;</div>
+            </div>
+            <div class="terminal-input-line mt-2">
+                <span class="terminal-prompt">C:\GABI&gt;</span>
+                <input id="shell-line" 
+                       class="flex-1 bg-transparent border-none outline-none text-[#00ff66] font-mono" 
+                       type="text" 
+                       placeholder="Befehl eingeben...">
+            </div>
+        </div>
+
+        <div class="p-2 text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
+            <i class="fas fa-shield-alt"></i> Nur erlaubte Befehle aus der Allowlist
+        </div>
+    </section>
+</main>
+
+<!-- MODAL -->
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title" class="text-lg font-semibold text-[var(--accent)]"></h3>
+            <button class="modal-close" onclick="closeModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="modal-content" class="modal-body"></div>
+    </div>
+</div>
+
+<button id="scrollTopBtn"
+  class="hidden fixed bottom-6 left-6 z-50
+         bg-red-600 text-black rounded-full
+         w-10 h-10 shadow-lg
+         flex items-center justify-center
+         hover:bg-red-500 transition">
+  ↑
+</button>
+
+<!-- Scroll Progress Indicator - removed per user request -->
+
+<script>
+    // ==================== KONFIGURATION ====================
+    const API_KEY = "sysop";
+    let activeModel = "__AUTO__";
+    let availableModels = [];
+    let modelCapabilities = {};
+    let thinkingInterval = null;
+    let thinkingStartTime = null;
+    let shellVisible = false;
+    let currentStreamingMessage = null;
+    
+    // ==================== DOM ELEMENTE ====================
+    const chatHistory = document.getElementById('chat-history');
+    const chatInput = document.getElementById('chat-input');
+    const shellSection = document.getElementById('shell-section');
+    const shellOutput = document.getElementById('shell-output');
+    const shellLine = document.getElementById('shell-line');
+    const mainGrid = document.getElementById('main-grid');
+    const appHeader = document.getElementById('app-header');
+    const mainToolbar = document.getElementById('main-toolbar');
+    const typingIndicator = document.getElementById('typing-indicator');
+    const thinkingSteps = document.getElementById('thinking-steps');
+    const stepsContainer = document.getElementById('steps-container');
+    const thinkingTime = document.getElementById('thinking-time');
+    const llmInfo = document.getElementById('llm-info');
+    const activeModelDisplay = document.getElementById('active-model-display');
+    const tokenCount = document.getElementById('token-count');
+    const chatMeta = document.getElementById('chat-meta');
+    const chatSection = document.getElementById('chat-section');
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalContent = document.getElementById('modal-content');
+    const modelSelector = document.getElementById('model-selector');
+    const sendButton = document.getElementById('send-button');
+    const stopButton = document.getElementById('stop-button');
+    const systemInfo = {
+        os: document.getElementById('os-info'),
+        storage: document.getElementById('storage-info'),
+        whisperStatus: document.getElementById('whisper-status'),
+        telegramStatus: document.getElementById('telegram-status'),
+        gmailStatus: document.getElementById('gmail-status'),
+        calendarStatus: document.getElementById('calendar-status'),
+        comfyStatus: document.getElementById('comfy-status'),
+        llmStatus: document.getElementById('llm-status')
+    };
+
+    // Scroll Progress Indicator
+    const scrollProgress = document.getElementById('scrollProgress');
+
+    // ==================== TELEGRAM VARIABLEN ====================
+    // let telegramPollingInterval = null;
+    // let lastTelegramUpdate = 0;
+    // let displayedTelegramMessages = new Set(); // Speichert bereits angezeigte Nachrichten-IDs
+
+    // ==================== WHISPER VARIABLEN ====================
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let currentChatController = null;
+    let currentChatRunning = false;
+    let fileSuggestions = [];
+    let pendingVisionImage = null;
+    let currentRequestId = null;
+    let progressPollTimer = null;
+    let progressCursor = 0;
+    let progressPollingEnabled = false;
+    let currentThinkingContainer = null;
+    let lastProgressActiveModel = null;
+    let chatDragDepth = 0;
+
+    // ==================== HELPER FUNCTIONS ====================
+    function formatTime(ms) {
+        const seconds = Math.floor(ms / 1000);
+        return `${seconds}s`;
+    }
+
+    function escapeHtml(unsafe) {
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function formatClock(value = null) {
+        const d = value ? new Date(value) : new Date();
+        return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function isMutedGatewayMessage(text) {
+        const value = (text || "").toLowerCase();
+        return value.includes("memory archiviert:") || /memory_archive_\d{8}_\d{6}\.md/i.test(value);
+    }
+
+    function inferVisionCapability(modelName) {
+        const m = (modelName || "").toLowerCase();
+        return /(qwen2\.5vl|llava|moondream|minicpm-v|vision|\bvl\b|internvl|bakllava)/.test(m);
+    }
+
+function syncActiveModel(modelName) {
+    if (!modelName) return;
+    activeModel = modelName;
+    localStorage.setItem('lastUsedLLM', activeModel);
+    
+    // Sicherstellen, dass die Elemente existieren, bevor auf textContent zugegriffen wird
+    if (llmInfo) {
+        llmInfo.textContent = activeModel === "__AUTO__" ? "Auto" : activeModel;
+    }
+    if (activeModelDisplay) {
+        activeModelDisplay.textContent = activeModel === "__AUTO__" ? "Auto" : activeModel;
+    }
+    
+    if (modelSelector) {
+        modelSelector.value = activeModel;
+    }
+}
+
+    function syncHeaderOffsets() {
+        // Nur noch für Debug-Zwecke, nicht mehr für CSS verwendet
+        const headerHeight = appHeader ? appHeader.offsetHeight : 88;
+        console.log('Header Height:', headerHeight);
+    }
+
+    function generateRequestId(prefix = 'chat') {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return `${prefix}-${window.crypto.randomUUID()}`;
+        }
+        return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    }
+
+    function clearProgressPolling() {
+        if (progressPollTimer) {
+            clearInterval(progressPollTimer);
+            progressPollTimer = null;
+        }
+        progressPollingEnabled = false;
+        progressCursor = 0;
+        lastProgressActiveModel = null;
+    }
+
+    function addProgressStep(step) {
+        if (!step) return;
+        addThinkingStepToChat(step);
+    }
+
+    function startProgressPolling(requestId) {
+        clearProgressPolling();
+        progressPollingEnabled = true;
+        progressCursor = 0;
+
+        const pollOnce = async () => {
+            if (!progressPollingEnabled || !requestId) return;
+            try {
+                const response = await fetch(`/api/chat/progress/${encodeURIComponent(requestId)}?since=${progressCursor}`, {
+                    headers: { 'token': API_KEY }
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                const steps = data.steps || [];
+                steps.forEach(addProgressStep);
+                progressCursor = Number.isFinite(data.next_index) ? data.next_index : (progressCursor + steps.length);
+                if (data.active_model && data.active_model !== lastProgressActiveModel) {
+                    lastProgressActiveModel = data.active_model;
+                    addThinkingStepToChat(`Aktives Modell: ${data.active_model}`, 'fa-robot');
+                }
+                if (data.done) {
+                    clearProgressPolling();
+                }
+            } catch {
+                // polling best-effort
+            }
+        };
+
+        pollOnce();
+        progressPollTimer = setInterval(pollOnce, 450);
+    }
+
+    async function stopCurrentTask() {
+        if (currentChatController) {
+            currentChatController.abort();
+        }
+        try {
+            await fetch('/api/chat/stop', {
+                method: 'POST',
+                headers: {
+                    'token': API_KEY,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ request_id: currentRequestId || null })
+            });
+            addThinkingStepToChat('Stop angefordert: Anfrage + Ollama werden abgebrochen', 'fa-stop-circle');
+        } catch (e) {
+            addThinkingStepToChat(`Stop-Fehler: ${e.message}`, 'fa-exclamation-triangle');
+        } finally {
+            clearProgressPolling();
+            stopButton.disabled = true;
+        }
+    }
+
+    async function fetchFileSuggestions(query = "") {
+        try {
+            const url = `/api/files/list?limit=120&query=${encodeURIComponent(query)}`;
+            const response = await fetch(url, { headers: { 'Authorization': `Bearer ${API_KEY}` } });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return data.files || [];
+        } catch {
+            return [];
+        }
+    }
+
+    function renderFileSuggestions(items) {
+        const box = document.getElementById('file-suggest');
+        if (!box) return;
+        if (!items.length) {
+            box.classList.add('hidden');
+            box.innerHTML = "";
+            return;
+        }
+        box.innerHTML = items.map(path => `
+            <button class="w-full text-left px-2 py-1 rounded hover:bg-[var(--bg-secondary)] truncate"
+                onclick="pickSuggestedFile('${escapeHtml(path).replace(/'/g, "\\'")}')">@${escapeHtml(path)}</button>
+        `).join("");
+        box.classList.remove('hidden');
+    }
+
+    function pickSuggestedFile(path) {
+        const value = chatInput.value;
+        const atIndex = value.lastIndexOf('@');
+        if (atIndex >= 0) {
+            chatInput.value = `${value.slice(0, atIndex)}@${path} `;
+            chatInput.focus();
+        }
+        renderFileSuggestions([]);
+    }
+
+    async function expandAtFileReferences(message) {
+        const matches = [...message.matchAll(/@([^\s]+)/g)];
+        if (!matches.length) {
+            return {
+                message,
+                loadedFiles: [],
+                missingFiles: [],
+            };
+        }
+
+        let enriched = message;
+        const loadedFiles = [];
+        const missingFiles = [];
+        let remainingBudget = 50000;
+
+        for (const match of matches) {
+            const filePath = match[1].replace(/[),.;:]+$/, '');
+            try {
+                const maxChars = Math.max(4000, Math.min(18000, remainingBudget));
+                const response = await fetch(`/api/files/read?path=${encodeURIComponent(filePath)}&max_chars=${maxChars}`, {
+                    headers: { 'Authorization': `Bearer ${API_KEY}` }
+                });
+                if (!response.ok) {
+                    missingFiles.push(filePath);
+                    continue;
+                }
+                const data = await response.json();
+                const content = (data.content || "").slice(0, maxChars);
+                enriched += `\n\n[Datei: ${data.path}]\n${content}\n[/Datei]\n`;
+                loadedFiles.push({
+                    path: data.path,
+                    size: data.size || content.length,
+                    truncated: Boolean(data.truncated),
+                });
+                remainingBudget -= content.length;
+                if (remainingBudget <= 0) break;
+            } catch {
+                missingFiles.push(filePath);
+            }
+        }
+
+        return {
+            message: enriched,
+            loadedFiles,
+            missingFiles,
+        };
+    }
+
+    function hasFileTaskIntent(message) {
+        return /(prüf|check|zusammenfass|analys|review|erklär|vergleich|compare|debug|fix|verbesser|refactor|dokumentier)/i.test(message || "");
+    }
+
+    function extractThinkingBlocks(text) {
+        if (!text) return { cleanText: "", thoughts: [] };
+        const thoughts = [];
+        const cleanText = text.replace(/<(think|thinking|reasoning)>([\s\S]*?)<\/\1>/gi, (_, __tag, thought) => {
+            const trimmed = (thought || "").trim();
+            if (trimmed) thoughts.push(trimmed);
+            return "";
+        }).trim();
+        return { cleanText, thoughts };
+    }
+
+    // ==================== UI TOGGLES ====================
+    function toggleTools() {
+        const toolPanel = document.getElementById('tool-panel');
+        const mailPanel = document.getElementById('mail-panel');
+        const isHidden = toolPanel.classList.contains('hidden');
+
+        // Toggle tools
+        toolPanel.classList.toggle('hidden');
+
+        // If opening tools, close mails
+        if (isHidden) {
+            mailPanel.classList.add('hidden');
+        }
+    }
+
+    function toggleMails() {
+        const toolPanel = document.getElementById('tool-panel');
+        const mailPanel = document.getElementById('mail-panel');
+        const isHidden = mailPanel.classList.contains('hidden');
+
+        // Toggle mails
+        mailPanel.classList.toggle('hidden');
+
+        // If opening mails, close tools
+        if (isHidden) {
+            toolPanel.classList.add('hidden');
+        }
+    }
+
+
+    function toggleShell() {
+        shellVisible = !shellVisible;
+        shellSection.classList.toggle('hidden');
+        
+        if (shellVisible) {
+            mainGrid.classList.add('shell-visible');
+            mainGrid.classList.remove('shell-hidden');
+        } else {
+            mainGrid.classList.remove('shell-visible');
+            mainGrid.classList.add('shell-hidden');
+        }
+    }
+
+
+    // ==================== THINKING STEPS FUNCTIONS ====================
+function createThinkingContainer() {
+    const thinkingContainer = document.createElement('div');
+    thinkingContainer.className = 'thinking-steps-container fade-in';
+    thinkingContainer.innerHTML = `
+        <details open>
+            <summary class="thinking-head">🔄 Gedankengang</summary>
+            <div class="steps-list"></div>
+        </details>
+    `;
+    chatHistory.appendChild(thinkingContainer);
+    currentThinkingContainer = thinkingContainer;
+    return thinkingContainer;
+}
+
+function addThinkingStepToChat(step, icon = 'fa-pencil-alt') {
+    let thinkingContainer = currentThinkingContainer;
+    if (!thinkingContainer || !thinkingContainer.isConnected) {
+        thinkingContainer = createThinkingContainer();
+    }
+    
+    const stepsList = thinkingContainer.querySelector('.steps-list');
+    const payload = typeof step === 'string'
+        ? { text: step, icon, time: null, details: '' }
+        : {
+            text: step?.text || step?.message || '',
+            icon: step?.icon || icon,
+            time: step?.time || null,
+            details: step?.details || '',
+        };
+    const stepText = payload.text || 'Schritt';
+    const stepTime = payload.time
+        ? formatClock(payload.time)
+        : new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    // Verschiedene Icons für verschiedene Schritt-Typen
+    let iconClass = payload.icon || icon;
+    if (stepText.includes('Werkzeug') || stepText.includes('Web-Suche') || stepText.includes('Systembefehl')) {
+        iconClass = 'fa-tools';
+    } else if (stepText.includes('Fehler')) {
+        iconClass = 'fa-exclamation-triangle';
+    } else if (stepText.includes('empfangen')) {
+        iconClass = 'fa-inbox';
+    } else if (stepText.includes('Verbinde')) {
+        iconClass = 'fa-plug';
+    } else if (stepText.includes('Antwort')) {
+        iconClass = 'fa-brain';
+    }
+
+    const detailsBlock = payload.details
+        ? `<details><summary>Details</summary><pre>${escapeHtml(String(payload.details))}</pre></details>`
+        : '';
+
+    stepsList.innerHTML += `
+        <div class="thinking-step">
+            <i class="fas ${iconClass}"></i>
+            <div class="flex-1">
+                <div class="flex items-center gap-2">
+                    <span>${escapeHtml(stepText)}</span>
+                    <span class="step-time">${stepTime}</span>
+                </div>
+                ${detailsBlock}
+            </div>
+        </div>
+    `;
+    
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+    function clearThinkingStepsFromChat() {
+        // Nicht löschen - nur für neue Nachrichten einen neuen Container
+        // Diese Funktion lassen wir leer, damit die Steps erhalten bleiben
+    }
+
+    function setChatDropActive(active) {
+        if (!chatSection) return;
+        chatSection.classList.toggle('drop-active', Boolean(active));
+    }
+
+    // ==================== MODAL FUNCTIONS ====================
+    let activeToolButton = null;
+
+    function closeModal() {
+        modal.classList.remove('active');
+        // Force reflow to ensure modal is fully closed
+        void modal.offsetWidth;
+        modal.style.display = 'none';
+        if (activeToolButton) {
+            activeToolButton.classList.remove('btn-active');
+            activeToolButton = null;
+        }
+    }
+
+    function showModal() {
+        modal.style.display = 'flex';
+        // Force reflow
+        void modal.offsetWidth;
+    }
+
+    function setActiveButton(btnId) {
+        if (activeToolButton) {
+            activeToolButton.classList.remove('btn-active');
+        }
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            btn.classList.add('btn-active');
+            activeToolButton = btn;
+        }
+    }
+
+    function getShellPrompt() {
+        const osText = (systemInfo.os?.textContent || "").toLowerCase();
+        return osText.includes("windows") ? "PS C:\\>" : "$";
+    }
+
+    function openShellModal() {
+        const prompt = getShellPrompt();
+        modalTitle.textContent = '💻 Admin Shell';
+        modalContent.innerHTML = `
+            <div class="terminal-modal">
+                <div id="shell-modal-output" class="terminal-output" style="height: 300px; overflow-y: auto;">
+                    <div>System: ${escapeHtml(systemInfo.os?.textContent || 'Unbekannt')}</div>
+                    <div>GABI Shell v1.0.2</div>
+                    <div>Befehle: PowerShell/Bash kompatibel mit Pipes und Redirect.</div>
+                </div>
+                <div class="terminal-input-line mt-2">
+                    <span class="terminal-prompt">${escapeHtml(prompt)}</span>
+                    <input id="shell-modal-line"
+                           class="flex-1 bg-transparent border-none outline-none text-[#00ff00] font-mono"
+                           type="text"
+                           placeholder="Befehl eingeben..."
+                           onkeydown="if(event.key==='Enter'){executeModalShellCommand(this.value);this.value='';}">
+                </div>
+            </div>
+        `;
+        showModal();
+        setActiveButton('btn-shell');
+    }
+
+    async function executeModalShellCommand(cmd) {
+        const prompt = getShellPrompt();
+        const output = document.getElementById('shell-modal-output');
+        output.innerHTML += `<div class="text-[#00ff00]">${escapeHtml(prompt)} ${escapeHtml(cmd)}</div>`;
+
+        try {
+            const response = await fetch('/shell', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'token': API_KEY
+                },
+                body: JSON.stringify({ command: cmd })
+            });
+            const result = await response.json();
+            if (result.stdout) {
+                output.innerHTML += `<pre class="text-[var(--text-secondary)] whitespace-pre-wrap">${escapeHtml(result.stdout)}</pre>`;
+            }
+            if (result.stderr) {
+                output.innerHTML += `<pre class="text-[var(--error)] whitespace-pre-wrap">${escapeHtml(result.stderr)}</pre>`;
+            }
+            if (!result.stdout && !result.stderr) {
+                output.innerHTML += `<div class="text-[var(--text-secondary)]">${escapeHtml(result.message || result.status || '(keine Ausgabe)')}</div>`;
+            }
+        } catch (e) {
+            output.innerHTML += `<div class="text-[var(--error)]">Fehler: ${e.message}</div>`;
+        }
+        output.scrollTop = output.scrollHeight;
+    }
+
+    async function handleFileUpload(files) {
+        if (!files || files.length === 0) return;
+
+        for (const file of files) {
+            const fileType = file.name.split('.').pop().toLowerCase();
+            const isAudio = ['mp3', 'wav', 'm4a', 'ogg', 'webm', 'flac', 'aac'].includes(fileType);
+
+            if (isAudio) {
+                addThinkingStepToChat(`Audio erkannt (${file.name}) - starte Whisper`, 'fa-microphone');
+                await transcribeAudio([file], true);
+                continue;
+            }
+
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(fileType)) {
+                pendingVisionImage = file;
+                addThinkingStepToChat(`Bild hochgeladen für VLM: ${file.name}`, 'fa-image');
+                const hasVisionModel = (availableModels || []).some((m) => {
+                    const cap = modelCapabilities[m] || {};
+                    return cap.vision || inferVisionCapability(m);
+                });
+                if (!hasVisionModel) {
+                    addThinkingStepToChat('Hinweis: Kein Vision-Modell erkannt. Nutze z.B. qwen2.5vl/llava.', 'fa-exclamation-triangle');
+                }
+                const content = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+                chatHistory.innerHTML += `
+                    <div class="flex justify-end fade-in">
+                        <div class="message-user">
+                            <img src="${content}" style="max-width: 300px; border-radius: 8px;" alt="${file.name}">
+                            <div class="text-xs text-[var(--text-muted)] mt-1">${file.name}</div>
+                        </div>
+                    </div>
+                `;
+                if (!chatInput.value.trim()) {
+                    chatInput.value = `Bitte analysiere das Bild "${file.name}"`;
+                }
+            } else {
+                const text = await file.text();
+                chatHistory.innerHTML += `
+                    <div class="flex justify-end fade-in">
+                        <div class="message-user">
+                            <div class="text-xs text-[var(--accent)]">📎 ${file.name}</div>
+                            <pre class="text-xs bg-[var(--bg-tertiary)] p-2 rounded mt-1 max-h-40 overflow-auto">${escapeHtml(text.substring(0, 1000))}${text.length > 1000 ? '...' : ''}</pre>
+                        </div>
+                    </div>
+                `;
+                chatInput.value += `\n[Datei: ${file.name}]\n${text.substring(0, 5000)}\n[/Datei]\n`;
+            }
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        chatInput.focus();
+    }
+
+    async function openModal(url, title, key) {
+        const buttonMap = {
+            'Memory': 'btn-memory',
+            'Skills': 'btn-skills',
+            'Heartbeat': 'btn-heartbeat'
+        };
+        const btnId = buttonMap[title.replace(/[^a-zA-Z]/g, '')];
+        if (btnId) setActiveButton(btnId);
+
+        try {
+            addThinkingStepToChat(`Lade ${title}...`, 'fa-download');
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+
+            modalTitle.textContent = title;
+
+            if (data[key]) {
+                modalContent.textContent = data[key];
+            } else {
+                modalContent.textContent = JSON.stringify(data, null, 2);
+            }
+
+            showModal();
+
+        } catch (error) {
+            console.error('Modal Error:', error);
+            modalContent.textContent = `Fehler beim Laden: ${error.message}`;
+            showModal();
+        }
+    }
+
+    // ==================== MODELL-AUSWAHL ====================
+    function updateModelSelector(models) {
+        modelSelector.innerHTML = '';
+
+        const autoOption = document.createElement('option');
+        autoOption.value = "__AUTO__";
+        autoOption.textContent = "Auto (Gateway)";
+        modelSelector.appendChild(autoOption);
+
+        if (!models || models.length === 0) {
+            modelSelector.innerHTML = '<option value="">Keine Modelle verfügbar</option>';
+            return;
+        }
+
+        const sortedModels = [...models].sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: 'base' })
+        );
+
+        const savedModel = localStorage.getItem('lastUsedLLM');
+        let modelFound = false;
+
+        sortedModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model;
+            const cap = modelCapabilities[model] || {};
+            const vision = cap.vision || inferVisionCapability(model);
+            option.textContent = `${vision ? '🖼️ ' : ''}${model}`;
+
+            if (model === savedModel) {
+                option.selected = true;
+                activeModel = model;
+                modelFound = true;
+            }
+
+            modelSelector.appendChild(option);
+        });
+
+        if (!modelFound) {
+            activeModel = "__AUTO__";
+            modelSelector.value = activeModel;
+            localStorage.setItem('lastUsedLLM', activeModel);
+        }
+    }
+
+    modelSelector.addEventListener('change', async (e) => {
+        const newModel = e.target.value;
+        if (!newModel) return;
+        if (newModel === "__AUTO__") {
+            syncActiveModel("__AUTO__");
+            addThinkingStepToChat("Gateway Model-Routing: Auto aktiviert", 'fa-brain');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/models/switch', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ model: newModel })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== 'success') {
+                throw new Error(data.detail || data.message || 'Modellwechsel fehlgeschlagen');
+            }
+            syncActiveModel(data.current_model || newModel);
+            addThinkingStepToChat(`Modell gewechselt zu: ${activeModel}`, 'fa-check-circle');
+        } catch (err) {
+            addThinkingStepToChat(`Modellwechsel fehlgeschlagen: ${err.message}`, 'fa-exclamation-triangle');
+            modelSelector.value = activeModel;
+        }
+    });
+
+    // ==================== SYSTEM STATUS ====================
+    async function checkStatus() {
+        try {
+            const response = await fetch('/status');
+            if (!response.ok) {
+                console.error('Status response not ok:', response.status);
+                return;
+            }
+            const data = await response.json();
+
+            if (!data) {
+                console.error('No data from /status');
+                return;
+            }
+                systemInfo.os.textContent = `${data.system.os || 'Unknown'} ${data.system.version || ''}`;
+                const drive = data.system.storage_drive || '?';
+                const free = data.system.storage_free_gb ?? '?';
+                const total = data.system.storage_total_gb ?? '?';
+                systemInfo.storage.textContent = `${drive}: ${free} GB frei / ${total} GB gesamt`;
+            }
+            
+            if (data.services?.ollama) {
+                const ollama = data.services.ollama;
+                const isConnected = ollama.status === 'connected';
+                
+                if (ollama.available_models && ollama.available_models.length > 0) {
+                    availableModels = ollama.available_models;
+                    modelCapabilities = {};
+                    if (Array.isArray(ollama.model_profiles)) {
+                        ollama.model_profiles.forEach((p) => {
+                            if (p?.name) modelCapabilities[p.name] = p.capabilities || {};
+                        });
+                    }
+                    updateModelSelector(availableModels);
+                    
+                    if (!availableModels.includes(activeModel)) {
+                        syncActiveModel("__AUTO__");
+                    }
+                }
+                
+                systemInfo.llmStatus.innerHTML = isConnected ?
+                    '<span class="status-badge status-online">Verbunden</span>' :
+                    '<span class="status-badge status-offline">Getrennt</span>';
+            }
+
+            if (data.services?.whisper) {
+                const whisper = data.services.whisper;
+                const isWhisperConnected = whisper.status === 'connected';
+                
+                if (isWhisperConnected) {
+                    const modelCount = whisper.available_models?.length || 0;
+                    if (modelCount > 0) {
+                        systemInfo.whisperStatus.innerHTML = `
+                            <span class="status-badge status-online">
+                                <i class="fas fa-check-circle"></i>
+                                Verbunden (${modelCount} Modelle)
+                            </span>
+                        `;
+                    } else {
+                        systemInfo.whisperStatus.innerHTML = `
+                            <span class="status-badge status-online">
+                                <i class="fas fa-check-circle"></i>
+                                Verbunden (läuft)
+                            </span>
+                        `;
+                    }
+                } else {
+                    systemInfo.whisperStatus.innerHTML = `
+                        <span class="status-badge status-offline">
+                            <i class="fas fa-times-circle"></i>
+                            Nicht verfügbar
+                        </span>
+                    `;
+                }
+            }
+
+            if (data.services?.telegram) {
+                const telegram = data.services.telegram;
+                systemInfo.telegramStatus.innerHTML = telegram.enabled ?
+                    '<span class="status-badge status-online">Aktiv</span>' :
+                    '<span class="status-badge status-offline">Deaktiviert</span>';
+            }
+
+            if (data.services?.gmail) {
+                systemInfo.gmailStatus.innerHTML = data.services.gmail.enabled ?
+                    '<span class="status-badge status-online">Aktiv</span>' :
+                    '<span class="status-badge status-offline">Deaktiviert</span>';
+            }
+
+            if (data.services?.calendar) {
+                systemInfo.calendarStatus.innerHTML = data.services.calendar.enabled ?
+                    '<span class="status-badge status-online">Aktiv</span>' :
+                    '<span class="status-badge status-offline">Nicht verbunden</span>';
+            }
+
+            if (data.services?.image_tools && systemInfo.comfyStatus) {
+                const tools = data.services.image_tools;
+                const comfy = tools.comfyui || {};
+                const invoke = tools.invoke || {};
+                // const comfyState = comfy.running ? 'Comfy 🟢 läuft' : (comfy.found ? 'Comfy 🟡 gefunden' : 'Comfy ❌');
+                const comfyState = comfy.running ? 'Comfy 🟢' : (comfy.found ? 'Comfy 🟡 gefunden' : 'Comfy ❌');
+                // const invokeState = invoke.found ? 'Invoke ✅' : 'Invoke ❌';
+                const invokeState = invoke.found ? 'Invoke ✅' : '';
+                const modelCount = tools.image_models_found ?? 0;
+                const comfyUrl = comfy.url ? ` · ${comfy.url}` : '';
+                // systemInfo.comfyStatus.textContent = `${comfyState}${comfyUrl} · ${invokeState} · Modelle: ${modelCount}`;
+                systemInfo.comfyStatus.textContent = `${comfyState}`;
+            }
+
+        } catch (error) {
+            console.error('Status Check Error:', error);
+            systemInfo.llmStatus.innerHTML = '<span class="status-badge status-offline">Fehler</span>';
+            modelSelector.innerHTML = '<option value="">Verbindungsfehler</option>';
+        }
+    }
+
+// ==================== CHAT FUNCTIONS ====================
+async function sendChat() {
+    const message = chatInput.value.trim();
+    if (!message && !pendingVisionImage) return;
+    if (currentChatRunning) return;
+    currentRequestId = generateRequestId('chat');
+    currentThinkingContainer = null;
+    startProgressPolling(currentRequestId);
+    const usedProgressPolling = true;
+
+    // User Message
+    const userTimestamp = formatClock();
+    const displayMessage = message || (pendingVisionImage ? `[Bild] ${pendingVisionImage.name}` : '');
+    chatHistory.innerHTML += `
+        <div class="flex justify-end fade-in">
+            <div class="message-user">
+                <div>${escapeHtml(displayMessage)}</div>
+                <div class="message-meta-line">🕒 ${userTimestamp}</div>
+            </div>
+        </div>
+    `;
+    chatInput.value = '';
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    currentChatRunning = true;
+    sendButton.disabled = true;
+    stopButton.disabled = false;
+
+    // Thinking Steps für diese Nachricht
+    addThinkingStepToChat(`Nachricht empfangen (Modell: ${activeModel})`, 'fa-inbox');
+
+    // Typing Indicator
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'typing-indicator fade-in';
+    typingDiv.id = 'typing-indicator';
+    typingDiv.innerHTML = `
+        <div class="loader-dots">
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+        <span><i class="fas fa-brain text-[var(--accent)] animate-pulse"></i> GABI denkt mit <strong>${escapeHtml(activeModel === "__AUTO__" ? "Auto" : activeModel)}</strong>...</span>
+        <span id="thinking-time" class="text-xs text-[var(--text-muted)]">0s</span>
+    `;
+    chatHistory.appendChild(typingDiv);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+
+    thinkingStartTime = Date.now();
+
+    if (thinkingInterval) clearInterval(thinkingInterval);
+    thinkingInterval = setInterval(() => {
+        const timeSpan = document.getElementById('thinking-time');
+        if (timeSpan) {
+            timeSpan.textContent = formatTime(Date.now() - thinkingStartTime);
+        }
+    }, 100);
+
+    const startTime = Date.now();
+
+    try {
+        addThinkingStepToChat('Verbinde mit Ollama…', 'fa-plug');
+        currentChatController = new AbortController();
+        const hasVisionImage = Boolean(pendingVisionImage);
+        let response;
+
+        if (hasVisionImage) {
+            addThinkingStepToChat(`Bildkontext aktiv: ${pendingVisionImage.name}`, 'fa-image');
+            const formData = new FormData();
+            formData.append('file', pendingVisionImage);
+            formData.append('prompt', message || 'Bitte analysiere dieses Bild präzise.');
+            formData.append('request_id', currentRequestId);
+            if (activeModel !== "__AUTO__") {
+                formData.append('model', activeModel);
+            }
+            response = await fetch('/api/chat/image/analyze', {
+                method: 'POST',
+                headers: {
+                    'token': API_KEY
+                },
+                signal: currentChatController.signal,
+                body: formData
+            });
+        } else {
+        const containsAtRefs = /@\S+/.test(message);
+        const promptMessage = containsAtRefs && !hasFileTaskIntent(message)
+            ? `Prüfe und fasse die referenzierten Dateien zusammen. Nenne: 1) Kurzfazit 2) Risiken/Fehler 3) konkrete nächste Schritte.\n\nNutzertext: ${message}`
+            : message;
+        const atExpansion = await expandAtFileReferences(promptMessage);
+        const enrichedMessage = atExpansion.message;
+
+        if (atExpansion.loadedFiles.length) {
+            const filesText = atExpansion.loadedFiles
+                .map(f => `${f.path}${f.truncated ? ' (gekürzt)' : ''}`)
+                .join(', ');
+            addThinkingStepToChat(`Dateikontext geladen: ${filesText}`, 'fa-file-code');
+        }
+        if (atExpansion.missingFiles.length) {
+            addThinkingStepToChat(`Datei nicht gefunden: ${atExpansion.missingFiles.join(', ')}`, 'fa-exclamation-triangle');
+        }
+        if (containsAtRefs && !atExpansion.loadedFiles.length) {
+            throw new Error('Keine @Datei konnte geladen werden. Prüfe den Pfad oder nutze die Vorschlagsliste nach @.');
+        }
+
+        response = await fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'token': API_KEY,
+                'Content-Type': 'application/json'
+            },
+            signal: currentChatController.signal,
+            body: JSON.stringify({
+                message: enrichedMessage,
+                model: activeModel === "__AUTO__" ? null : activeModel,
+                request_id: currentRequestId,
+            })
+        });
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        addThinkingStepToChat('Antwort empfangen', 'fa-brain');
+
+        const data = await response.json();
+
+        if (data.status !== 'success') {
+            throw new Error(data.reply || data.message || data.error || 'Unbekannter LLM-Fehler');
+        }
+
+        let replyText = data.reply || '';
+        const responseModel = data.model_used || data.current_model || (activeModel === "__AUTO__" ? "Auto" : activeModel);
+        const isModelCommand = /^\/model\b/i.test(message);
+        if (isModelCommand && data.current_model) {
+            syncActiveModel(data.current_model);
+        } else if (activeModel !== "__AUTO__" && (data.model_used || data.current_model)) {
+            syncActiveModel(data.model_used || data.current_model);
+        } else if (activeModel === "__AUTO__" && data.model_used) {
+            addThinkingStepToChat(`Gateway Model-Routing: ${data.model_used}`, 'fa-code-branch');
+        }
+        if (!usedProgressPolling && Array.isArray(data.thinking_steps) && data.thinking_steps.length) {
+            data.thinking_steps.forEach((step) => {
+                if (typeof step === 'string') {
+                    addThinkingStepToChat(step, 'fa-brain');
+                    return;
+                }
+                addThinkingStepToChat(step);
+            });
+        }
+        const thoughtData = extractThinkingBlocks(replyText);
+        if (thoughtData.thoughts.length) {
+            thoughtData.thoughts.forEach((thought, idx) => {
+                addThinkingStepToChat(`LLM Thinking ${idx + 1}: ${thought.slice(0, 120)}${thought.length > 120 ? '…' : ''}`, 'fa-brain');
+            });
+            const thinkDiv = document.createElement('div');
+            thinkDiv.className = 'flex justify-start fade-in';
+            thinkDiv.innerHTML = `
+                <div class="message-assistant gateway-muted prose prose-invert max-w-none w-full">
+                    <div class="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2 border-b border-[var(--border)] pb-2">
+                        <span>🧠 LLM Thinking</span>
+                        <span>·</span>
+                        <span>🕒 ${formatClock()}</span>
+                    </div>
+                    <details>
+                        <summary class="cursor-pointer text-[var(--accent)]">Gedankengang anzeigen</summary>
+                        <pre class="mt-2 whitespace-pre-wrap text-xs">${escapeHtml(thoughtData.thoughts.join('\n\n---\n\n'))}</pre>
+                    </details>
+                </div>
+            `;
+            chatHistory.appendChild(thinkDiv);
+        }
+        replyText = thoughtData.cleanText;
+        if (!replyText.trim()) {
+            replyText = '⚠️ Keine Textantwort vom Gateway/Modell erhalten.';
+        }
+        const timestamp = data.timestamp
+            ? new Date(data.timestamp).toLocaleTimeString('de-DE')
+            : new Date().toLocaleTimeString('de-DE');
+
+        const tokenEstimate = replyText.split(/\s+/).length;
+
+        // Typing Indicator entfernen
+        const typingIndicator = document.getElementById('typing-indicator');
+        if (typingIndicator) typingIndicator.remove();
+
+        // Hilfsfunktion zum Bereinigen von URLs
+        function cleanUrl(url) {
+            if (!url) return url;
+            // Entferne Anführungszeichen, Kommas, Klammern am Ende
+            return url.replace(/[,"')\]}>]+$/, '').trim();
+        }
+
+        // Prüfe ob die Antwort JSON enthält und wandle es in HTML um
+        let processedHtml = replyText;
+        
+        // Entferne Markdown-Code-Blöcke und parse JSON
+        const jsonMatch = replyText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+            try {
+                const jsonStr = jsonMatch[1].trim();
+                const jsonData = JSON.parse(jsonStr);
+                
+                if (jsonData.ok && jsonData.results) {
+                    // Erstelle HTML-Tabelle mit Links
+                    let tableHtml = '<div class="search-results mt-4">';
+                    tableHtml += '<h3 class="text-[var(--accent)] font-bold mb-3 flex items-center gap-2">';
+                    tableHtml += '<i class="fas fa-search"></i> Suchergebnisse:</h3>';
+                    tableHtml += '<div class="space-y-4">';
+                    
+                    jsonData.results.forEach((result, index) => {
+                        const title = result.title || 'Unbekannter Titel';
+                        const rawUrl = result.url || '#';
+                        const cleanUrl_str = cleanUrl(rawUrl); // Bereinigte URL
+                        const snippet = result.snippet || 'Keine Beschreibung verfügbar';
+                        
+                        tableHtml += `
+                            <div class="result-card border border-[var(--border)] rounded-lg p-4 hover:bg-[var(--bg-tertiary)] transition-all">
+                                <div class="flex items-start gap-3">
+                                    <span class="result-number text-[var(--accent)] font-bold text-lg min-w-[30px]">${index + 1}.</span>
+                                    <div class="flex-1">
+                                        <a href="${cleanUrl_str}" target="_blank" 
+                                           class="result-title text-[var(--accent)] hover:text-[var(--accent-hover)] font-semibold text-lg block mb-1"
+                                           onclick="console.log('Klick auf:', '${cleanUrl_str}')">
+                                            ${title}
+                                            <i class="fas fa-external-link-alt text-xs ml-2 opacity-70"></i>
+                                        </a>
+                                        <div class="result-url text-xs text-[var(--text-muted)] mb-2 break-all">
+                                            <i class="fas fa-link mr-1"></i>
+                                            <a href="${cleanUrl_str}" target="_blank" class="hover:underline">
+                                                ${cleanUrl_str}
+                                            </a>
+                                        </div>
+                                        <p class="result-snippet text-sm text-[var(--text-secondary)] leading-relaxed">
+                                            ${snippet}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    tableHtml += '</div></div>';
+                    
+                    // Ersetze den JSON-Block mit der HTML-Tabelle
+                    processedHtml = replyText.replace(/```(?:json)?\s*[\s\S]*?\s*```/, tableHtml);
+                }
+            } catch (e) {
+                console.log('JSON Parse Error:', e);
+                processedHtml = marked.parse(replyText);
+            }
+        } else {
+            // Kein JSON gefunden, normal parsen
+            processedHtml = marked.parse(replyText);
+        }
+
+        processedHtml = processedHtml.replace(/<hr\s*\/?>/g, '<div class="response-separator"></div>');
+        
+        // Generelle Link-Erkennung für URLs im Text (mit Bereinigung)
+        processedHtml = processedHtml.replace(
+            /(https?:\/\/[^\s<"']+)([,"')\]}>]*)/g, 
+            function(match, url, trailing) {
+                const cleanUrl_str = cleanUrl(url);
+                return `<a href="${cleanUrl_str}" target="_blank" class="text-[var(--accent)] hover:underline">${cleanUrl_str}${trailing} <i class="fas fa-external-link-alt text-xs"></i></a>`;
+            }
+        );
+
+        // Assistant Message
+        const mutedGateway = isMutedGatewayMessage(replyText);
+        const assistantToneClass = mutedGateway ? ' gateway-muted' : '';
+        const assistantDiv = document.createElement('div');
+        assistantDiv.className = 'flex justify-start fade-in';
+        assistantDiv.innerHTML = `
+            <div class="message-assistant${assistantToneClass} prose prose-invert max-w-none w-full">
+                <div class="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2 border-b border-[var(--border)] pb-2">
+                    <span>🤖 ${escapeHtml(responseModel)}</span>
+                    <span>·</span>
+                    <span>🕒 ${timestamp}</span>
+                    <span>·</span>
+                    <span>🧮 ~${tokenEstimate} Tokens</span>
+                    ${mutedGateway ? '<span>·</span><span>🔕 Gateway</span>' : ''}
+                </div>
+                <div class="mt-2">
+                    ${processedHtml}
+                </div>
+            </div>
+        `;
+
+        chatHistory.appendChild(assistantDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+
+        // Spezieller Step für Werkzeug-Nutzung
+        if (data.tool_used) {
+            addThinkingStepToChat(data.tool_used, 'fa-tools');
+        }
+        if (data.command_executed) {
+            addThinkingStepToChat({
+                text: `Execute: ${data.command_executed}`,
+                icon: 'fa-terminal',
+                details: data.stdout_excerpt || data.reply || '',
+            });
+        }
+        pendingVisionImage = null;
+        clearProgressPolling();
+
+        addThinkingStepToChat('Antwort gerendert', 'fa-check-circle');
+
+        const duration = Date.now() - startTime;
+        chatMeta.innerHTML = `
+            <i class="far fa-clock"></i> ${formatTime(duration)} |
+            <i class="fas fa-file-alt"></i> ${tokenEstimate} Tokens |
+            <i class="fas fa-brain"></i> ${escapeHtml(responseModel)}
+        `;
+
+    } catch (error) {
+        console.error('Chat Error:', error);
+
+        const typingIndicator = document.getElementById('typing-indicator');
+        if (typingIndicator) typingIndicator.remove();
+
+        const isAbort = error.name === 'AbortError';
+        chatHistory.innerHTML += `
+            <div class="flex justify-start fade-in">
+                <div class="message-assistant text-[var(--error)]">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Fehler: ${escapeHtml(isAbort ? 'Anfrage gestoppt' : error.message)}
+                </div>
+            </div>
+        `;
+
+        addThinkingStepToChat(`Fehler: ${isAbort ? 'Anfrage gestoppt' : error.message}`, 'fa-exclamation-triangle');
+
+    } finally {
+        currentChatRunning = false;
+        sendButton.disabled = false;
+        stopButton.disabled = true;
+        currentChatController = null;
+        clearProgressPolling();
+        currentRequestId = null;
+        if (thinkingInterval) {
+            clearInterval(thinkingInterval);
+            thinkingInterval = null;
+        }
+
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+}
+
+
+    // ==================== SHELL FUNCTIONS ====================
+        async function executeShellCommand(command) {
+            // Wir senden den Befehl als kompletten String für Pipe-Support
+            const shellTs = formatClock();
+            shellOutput.innerHTML += `<div><span style="color: #6b7280;">[${shellTs}]</span> <span style="color: #ff2a2a;">></span> ${escapeHtml(command)}</div>`;
+            
+            try {
+                addThinkingStepToChat(`Führe Systembefehl aus...`, 'fa-terminal');
+                
+                const response = await fetch('/shell', {
+                    method: 'POST',
+                    headers: {
+                        'token': API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    // Wir senden den ganzen String in 'command' und lassen 'args' leer
+                    body: JSON.stringify({ command: command, args: [] })
+                });
+                
+                const data = await response.json();
+                
+                // NEU: Den ausgeführten Befehl schön im CHAT anzeigen (nicht nur in der Shell-Box)
+                const chatCmdDiv = document.createElement('div');
+                const cmdTime = formatClock();
+                chatCmdDiv.className = 'message-system mb-2 p-2 bg-black border-l-4 border-red-600 font-mono text-[10px] text-red-500 uppercase tracking-widest';
+                chatCmdDiv.innerHTML = `
+                    <div><i class="fas fa-microchip mr-2"></i>Execute: ${escapeHtml(command)}</div>
+                    <div class="message-meta-line">🕒 ${cmdTime}</div>
+                `;
+                chatHistory.appendChild(chatCmdDiv);
+
+                if (data.stdout) {
+                    // Den Output in die Shell-Box schreiben
+                    shellOutput.innerHTML += `<div><span style="color: #6b7280;">[${formatClock()}]</span> ${escapeHtml(data.stdout)}</div>`;
+                    // Optional: Den Output auch direkt in den Chat als Assistenten-Nachricht
+                    addMessageToChat('assistant', data.stdout);
+                } 
+                
+                if (data.stderr) {
+                    shellOutput.innerHTML += `<div style="color: #ff6b6b;"><span style="color: #6b7280;">[${formatClock()}]</span> ${escapeHtml(data.stderr)}</div>`;
+                }
+                
+            } catch (error) {
+                shellOutput.innerHTML += `<div style="color: #ff6b6b;"><span style="color: #6b7280;">[${formatClock()}]</span> Fehler: ${error.message}</div>`;
+            }
+            
+            shellOutput.innerHTML += `<div>&nbsp;</div>`;
+            shellOutput.scrollTop = shellOutput.scrollHeight;
+            scrollToBottom();
+        }
+
+    // ==================== TELEGRAM FUNCTIONS ====================
+    let telegramPollingInterval = null;
+    let lastTelegramUpdate = 0;
+    let displayedTelegramIds = new Set(); // Speichert bereits angezeigte Nachrichten-IDs
+    let pollingActive = false; // Verhindert gleichzeitige Polling-Aufrufe
+
+    // Hilfsfunktion: Erstellt eine eindeutige ID aus einer Nachricht
+    function createMessageId(msg) {
+        // Verwende die vom Server gelieferte ID oder erstelle eine eigene
+        return msg.id || `${msg.user_id}-${msg.date}-${msg.text || ''}`;
+    }
+
+    async function pollTelegramMessages() {
+        // Verhindere gleichzeitige Polling-Aufrufe
+        if (pollingActive) {
+            console.log('📨 Polling läuft bereits, überspringe...');
+            return;
+        }
+        
+        pollingActive = true;
+        
+        try {
+            const response = await fetch('/api/telegram/messages?since=' + lastTelegramUpdate, {
+                headers: { 'Authorization': 'Bearer ' + API_KEY }
+            });
+            const data = await response.json();
+            
+            if (data.messages && data.messages.length > 0) {
+                console.log(`📨 ${data.messages.length} Telegram-Nachrichten erhalten`);
+                
+                // Nur Nachrichten anzeigen, die noch NICHT im Set sind
+                const newMessages = [];
+                
+                for (const msg of data.messages) {
+                    const msgId = createMessageId(msg);
+                    
+                    if (!displayedTelegramIds.has(msgId)) {
+                        newMessages.push(msg);
+                        displayedTelegramIds.add(msgId); // Als gesehen markieren
+                    }
+                }
+                
+                // Nur anzeigen, wenn es wirklich neue gibt
+                if (newMessages.length > 0) {
+                    console.log(`📨 ${newMessages.length} NEUE Telegram-Nachrichten`);
+                    displayTelegramMessages(newMessages);
+                    showNewMessageIndicator(newMessages.length);
+                    
+                    // lastTelegramUpdate nur aktualisieren, wenn wirklich neue Nachrichten da sind
+                    // Verwende den aktuellen Zeitstempel
+                    lastTelegramUpdate = Date.now();
+                } else {
+                    console.log('📨 Keine neuen Nachrichten');
+                }
+            }
+        } catch (error) {
+            console.error('Telegram poll error:', error);
+        } finally {
+            pollingActive = false;
+        }
+    }
+
+    // Telegram-Nachrichten im Chat anzeigen
+    function displayTelegramMessages(messages) {
+        for (const msg of messages) {
+            const msgId = createMessageId(msg);
+            
+            // Prüfen ob schon im DOM (zusätzliche Sicherheit)
+            if (document.querySelector(`[data-telegram-id="${msgId}"]`)) continue;
+            
+            const time = msg.date ? new Date(msg.date).toLocaleTimeString('de-DE') : new Date().toLocaleTimeString('de-DE');
+            const sender = msg.from || msg.sender || (msg.role === 'user' ? 'Telegram User' : 'GABI Bot');
+            const text = msg.text || msg.message || '';
+            const role = msg.role || 'unknown';
+            
+            // Nur anzeigen, wenn es sinnvollen Inhalt gibt
+            if (!text || text.length === 0) continue;
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'fade-in';
+            msgDiv.setAttribute('data-telegram-id', msgId);
+            
+            // Unterschiedliche Icons für User und Bot
+            const icon = role === 'user' ? 'fa-user' : 'fa-robot';
+            const archiveMessage = isMutedGatewayMessage(text);
+            const borderColor = archiveMessage ? '#4b5563' : (role === 'user' ? '#0088cc' : '#00a884');
+            
+            msgDiv.innerHTML = `
+                <div class="message-assistant ${archiveMessage ? 'gateway-muted' : ''}" style="border-left-color: ${borderColor};">
+                    <div class="text-xs text-[var(--text-muted)] mb-2">
+                        <i class="fab fa-telegram text-[#0088cc]"></i> 
+                        <i class="fas ${icon}"></i> ${sender} · 🕒 ${time}${archiveMessage ? ' · 🔕 System' : ''}
+                    </div>
+                    <div class="prose prose-invert">
+                        ${marked.parse(text)}
+                    </div>
+                </div>
+            `;
+            chatHistory.appendChild(msgDiv);
+        }
+        
+        if (messages.length > 0) {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+    }
+
+    function showNewMessageIndicator(count) {
+        // Alten Indicator entfernen
+        const oldIndicator = document.getElementById('new-message-indicator');
+        if (oldIndicator) oldIndicator.remove();
+        
+        const div = document.createElement('div');
+        div.id = 'new-message-indicator';
+        div.className = 'fixed top-20 right-8 bg-[#0088cc] text-white px-4 py-2 rounded-lg shadow-lg cursor-pointer animate-pulse z-50';
+        div.onclick = function() {
+            // Zu den neuesten Telegram-Nachrichten scrollen
+            const telegramMessages = document.querySelectorAll('[data-telegram-id]');
+            if (telegramMessages.length > 0) {
+                const lastMessages = Array.from(telegramMessages).slice(-count);
+                if (lastMessages.length > 0) {
+                    lastMessages[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+            div.remove();
+        };
+        div.innerHTML = '<i class="fab fa-telegram"></i> ' + count + ' neue Telegram-Nachricht(en)';
+        document.body.appendChild(div);
+    }
+
+    async function initTelegramPolling() {
+        try {
+            // Prüfen ob Telegram überhaupt enabled ist
+            const response = await fetch('/status');
+            const data = await response.json();
+            
+            if (data.services && data.services.telegram && data.services.telegram.enabled) {
+                console.log('📨 Telegram polling gestartet (alle 5 Sekunden)');
+                
+                // Set zurücksetzen
+                displayedTelegramIds.clear();
+                lastTelegramUpdate = Date.now();
+                pollingActive = false;
+                
+                // Bestehende Telegram-Nachrichten im Chat erkennen
+                setTimeout(() => {
+                    document.querySelectorAll('[data-telegram-id]').forEach(el => {
+                        const id = el.getAttribute('data-telegram-id');
+                        if (id) displayedTelegramIds.add(id);
+                    });
+                    console.log(`📨 ${displayedTelegramIds.size} bereits angezeigte Telegram-Nachrichten erkannt`);
+                }, 1000);
+                
+                // Vorhandenes Interval löschen
+                if (telegramPollingInterval) {
+                    clearInterval(telegramPollingInterval);
+                }
+                
+                // Neues Interval starten
+                telegramPollingInterval = setInterval(pollTelegramMessages, 5000);
+                
+                // Gleich beim Start einmal abfragen
+                setTimeout(pollTelegramMessages, 1000);
+            } else {
+                console.log('📨 Telegram ist nicht enabled in der Config');
+            }
+        } catch (e) {
+            console.error('Telegram init error:', e);
+        }
+    }
+
+    // Manueller Check für Tests
+    window.checkTelegramNow = async function() {
+        console.log('📨 Manueller Telegram-Check...');
+        displayedTelegramIds.clear(); // Für Test-Zwecke
+        await pollTelegramMessages();
+        console.log('📨 Check abgeschlossen');
+    }
+
+    // Set regelmäßig leeren (alle 30 Minuten)
+    setInterval(() => {
+        const size = displayedTelegramIds.size;
+        if (size > 0) {
+            console.log(`📨 Telegram-ID-Set enthält ${size} Einträge`);
+        }
+        if (size > 1000) {
+            displayedTelegramIds.clear();
+            console.log('📨 Telegram-ID-Set geleert (zu groß)');
+        }
+    }, 1800000); // 30 Minuten
+
+
+    // ==================== WHISPER FUNCTIONS ====================
+    function openWhisperModal() {
+        modalTitle.textContent = 'Whisper Spracherkennung';
+        modalContent.innerHTML = '<div class="p-4"><p class="mb-4 text-gray-400">Audio aufnehmen oder Datei hochladen:</p><div class="flex gap-3 mb-4"><button onclick="startRecording()" class="btn bg-red-600 text-white"><i class="fas fa-microphone"></i> Aufnehmen</button><button onclick="document.getElementById(\'whisper-file\').click()" class="btn"><i class="fas fa-upload"></i> Datei</button></div><input type="file" id="whisper-file" class="hidden" accept="audio/*" onchange="transcribeAudio(this.files)"><div id="whisper-result" class="mt-4 p-3 bg-gray-800 rounded hidden"></div></div>';
+        showModal();
+        setActiveButton('btn-whisper');
+    }
+
+async function startRecording() {
+    try {
+        // Prüfe ob bereits aufgenommen wird
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            stopRecording();
+            return;
+        }
+
+        // Prüfe ob MediaRecorder verfügbar ist
+        if (!window.MediaRecorder) {
+            alert('MediaRecorder wird von diesem Browser nicht unterstützt. Bitte Chrome, Edge oder Firefox verwenden.');
+            return;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true
+        });
+
+        // Bestimme unterstützten MIME-Typ
+        let mimeType = '';
+        const mimeTypes = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/mp4',
+            'audio/mpeg',
+            'audio/wav',
+            'audio/ogg'
+        ];
+
+        for (const mime of mimeTypes) {
+            if (MediaRecorder.isTypeSupported(mime)) {
+                mimeType = mime;
+                console.log('Verwende MIME-Typ:', mimeType);
+                break;
+            }
+        }
+
+        if (!mimeType) {
+            // Fallback: verwende Standard ohne MIME-Typ
+            console.warn('Kein spezifischer MIME-Typ unterstützt, verwende Standard');
+            mediaRecorder = new MediaRecorder(stream);
+        } else {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+        }
+
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+                audioChunks.push(e.data);
+            }
+        };
+
+        mediaRecorder.onstop = async () => {
+            const blobType = mediaRecorder.mimeType || 'audio/webm';
+            const audioBlob = new Blob(audioChunks, { type: blobType });
+            const audioFile = new File([audioBlob], `recording.${blobType.includes('webm') ? 'webm' : 'wav'}`, { type: blobType });
+            // Stoppe alle Tracks
+            stream.getTracks().forEach(track => track.stop());
+            // Transkribiere
+            await transcribeAudio([audioFile], true);
+        };
+
+        mediaRecorder.onerror = (e) => {
+            console.error('MediaRecorder Fehler:', e);
+            stream.getTracks().forEach(track => track.stop());
+        };
+
+        // Starte Aufnahme mit Zeitstempel-Intervall
+        mediaRecorder.start(1000);
+
+        // Zeige Aufnahme-Status
+        const resultDiv = document.getElementById('whisper-result');
+        if (resultDiv) {
+            resultDiv.classList.remove('hidden');
+            resultDiv.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                    <span>Aufnahme läuft... (klick nochmal zum Stoppen)</span>
+                </div>
+            `;
+        }
+
+    } catch (err) {
+        console.error('Mikrofon Fehler:', err);
+        alert('Mikrofon nicht verfügbar: ' + err.message + '\n\nBitte stellen Sie sicher, dass das Mikrofon erlaubt ist und HTTPS (oder localhost) verwendet wird.');
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+    }
+}
+
+async function transcribeAudio(files, autoAnalyze = false) {
+    if (!files || files.length === 0) return;
+    
+    const resultDiv = document.getElementById('whisper-result');
+    resultDiv.classList.remove('hidden');
+    resultDiv.innerHTML = `
+        <div class="flex items-center gap-2">
+            <div class="loader"></div> 
+            Transkribiere... (das kann bis zu 30 Sekunden dauern)
+        </div>
+    `;
+    
+    const file = files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        console.log('Sende Anfrage an /api/whisper/transcribe/sync');
+        
+        const response = await fetch('/api/whisper/transcribe/sync?language=de', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`
+            },
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Whisper Antwort:', data);
+        
+        if (data.status === 'success' && data.text) {
+            // Zeige das erfolgreiche Ergebnis
+            resultDiv.innerHTML = `
+                <div class="bg-[var(--bg-tertiary)] rounded-lg p-4">
+                    <div class="flex items-center gap-2 text-[var(--success)] mb-3">
+                        <i class="fas fa-check-circle"></i>
+                        <strong>Transkription erfolgreich:</strong>
+                        ${data.language ? `(Sprache: ${data.language})` : ''}
+                        ${data.duration ? `(Dauer: ${Math.round(data.duration)}s)` : ''}
+                    </div>
+                    <div class="p-4 bg-black rounded font-mono text-sm whitespace-pre-wrap border border-[var(--border)]">
+                        ${escapeHtml(data.text)}
+                    </div>
+                    <div class="flex gap-2 mt-4">
+                        <button class="btn btn-sm" onclick="copyToClipboard('${escapeHtml(data.text).replace(/'/g, "\\'")}')">
+                            <i class="fas fa-copy"></i> In Zwischenablage
+                        </button>
+                        <button class="btn btn-sm" onclick="useInChat('${escapeHtml(data.text).replace(/'/g, "\\'")}')">
+                            <i class="fas fa-comment"></i> Im Chat verwenden
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            if (autoAnalyze) {
+                chatInput.value = `Bitte analysiere und strukturiere diese Transkription:\n\n${data.text}`;
+                await sendChat();
+            }
+        } else {
+            const fallbackError = data.error || data.detail || JSON.stringify(data);
+            resultDiv.innerHTML = `
+                <div class="bg-[var(--bg-tertiary)] rounded-lg p-4">
+                    <div class="flex items-center gap-2 text-[var(--error)] mb-3">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Fehler:</strong>
+                    </div>
+                    <div class="p-3 bg-black rounded font-mono text-sm">
+                        ${escapeHtml(fallbackError || 'Unbekannter Fehler')}
+                    </div>
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.error('Transcribe error:', err);
+        resultDiv.innerHTML = `
+            <div class="bg-[var(--bg-tertiary)] rounded-lg p-4">
+                <div class="flex items-center gap-2 text-[var(--error)] mb-3">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Fehler:</strong>
+                </div>
+                <div class="p-3 bg-black rounded font-mono text-sm">
+                    ${escapeHtml(err.message)}
+                </div>
+                <div class="text-xs text-[var(--text-muted)] mt-3">
+                    <i class="fas fa-info-circle"></i>
+                    Stelle sicher dass der Whisper-Server läuft:
+                    <code class="block mt-1 p-2 bg-[var(--bg-secondary)] rounded">
+                        cd M:\\whisper\\whisper.cpp && server -m models/ggml-large-v3.bin
+                    </code>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Hilfsfunktionen
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert('📋 In Zwischenablage kopiert!');
+    });
+}
+
+function useInChat(text) {
+    chatInput.value = text;
+    chatInput.focus();
+    closeModal();
+}
+
+    // ==================== MEMORY FUNCTIONS ====================
+    async function showMemoryStats() {
+        try {
+            const response = await fetch('/api/memory/stats', {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+            
+            if (data.stats) {
+                const stats = data.stats;
+                const statsText = `
+Memory Statistiken:
+------------------
+📁 Datei: ${stats.memory_file}
+📊 Größe: ${stats.file_size_kb} KB
+📝 Zeilen: ${stats.lines}
+💬 Konversationen: ${stats.conversations}
+📚 Verlauf: ${stats.history_count} Nachrichten
+🗄 Archive: ${stats.archives_available}
+                `;
+                
+                modalTitle.textContent = '📊 Memory Statistiken';
+                modalContent.textContent = statsText;
+                showModal();
+            }
+        } catch (error) {
+            console.error('Stats Error:', error);
+        }
+    }
+
+    async function archiveMemory() {
+        try {
+            addThinkingStepToChat('Archiviere Memory...', 'fa-archive');
+            
+            const response = await fetch('/api/memory/archive', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+            
+            modalTitle.textContent = '📦 Archivierung';
+            modalContent.textContent = data.message || JSON.stringify(data, null, 2);
+            showModal();
+            
+        } catch (error) {
+            console.error('Archive Error:', error);
+        }
+    }
+
+    async function resetMemory() {
+        if (!confirm('⚠️ Memory wirklich zurücksetzen? Ein Backup wird erstellt.')) return;
+        
+        try {
+            addThinkingStepToChat('Setze Memory zurück...', 'fa-trash-alt');
+            
+            const response = await fetch('/api/memory/reset', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+            
+            modalTitle.textContent = '⚠️ Memory zurückgesetzt';
+            modalContent.textContent = `Backup: ${data.backup_file}\n\n${JSON.stringify(data, null, 2)}`;
+            showModal();
+            
+        } catch (error) {
+            console.error('Reset Error:', error);
+        }
+    }
+
+    async function generateSoul() {
+        try {
+            addThinkingStepToChat('Generiere Soul aus Memory...', 'fa-magic');
+            
+            const response = await fetch('/api/memory/generate-soul', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            const data = await response.json();
+            
+            modalTitle.textContent = '🧬 Soul Generierung';
+            modalContent.textContent = data.message || JSON.stringify(data, null, 2);
+            showModal();
+            
+        } catch (error) {
+            console.error('Generate Soul Error:', error);
+        }
+    }
+
+    // ==================== EVENT LISTENERS ====================
+    
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendChat();
+        }
+    });
+
+    if (chatSection) {
+        const dragHasFiles = (event) => {
+            const types = Array.from(event?.dataTransfer?.types || []);
+            return types.includes('Files');
+        };
+
+        chatSection.addEventListener('dragenter', (e) => {
+            if (!dragHasFiles(e)) return;
+            e.preventDefault();
+            chatDragDepth += 1;
+            setChatDropActive(true);
+        });
+
+        chatSection.addEventListener('dragover', (e) => {
+            if (!dragHasFiles(e)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            setChatDropActive(true);
+        });
+
+        chatSection.addEventListener('dragleave', (e) => {
+            if (!dragHasFiles(e)) return;
+            e.preventDefault();
+            chatDragDepth = Math.max(0, chatDragDepth - 1);
+            if (chatDragDepth === 0) {
+                setChatDropActive(false);
+            }
+        });
+
+        chatSection.addEventListener('drop', async (e) => {
+            if (!dragHasFiles(e)) return;
+            e.preventDefault();
+            chatDragDepth = 0;
+            setChatDropActive(false);
+            const files = Array.from(e.dataTransfer?.files || []);
+            if (!files.length) return;
+            addThinkingStepToChat(`Datei-Drop erkannt (${files.length})`, 'fa-upload');
+            await handleFileUpload(files);
+        });
+    }
+
+    shellLine.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const command = e.target.value.trim();
+            if (command) {
+                executeShellCommand(command);
+                e.target.value = '';
+            }
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    chatInput.addEventListener('input', async function() {
+        const value = this.value;
+        const atIndex = value.lastIndexOf('@');
+        if (atIndex >= 0) {
+            const query = value.slice(atIndex + 1).trim();
+            fileSuggestions = await fetchFileSuggestions(query);
+            renderFileSuggestions(fileSuggestions.slice(0, 30));
+        } else {
+            renderFileSuggestions([]);
+        }
+    });
+
+    window.addEventListener('beforeunload', () => {
+        stopCurrentTask();
+    });
+
+    document.addEventListener('click', (e) => {
+        const box = document.getElementById('file-suggest');
+        if (!box) return;
+        if (e.target !== chatInput && !box.contains(e.target)) {
+            renderFileSuggestions([]);
+        }
+    });
+
+    chatHistory.addEventListener('scroll', function() {
+        var btn = document.getElementById('scroll-down-btn');
+        if (!btn) return;
+        var isAtBottom = chatHistory.scrollTop + chatHistory.clientHeight >= chatHistory.scrollHeight - 50;
+        if (!isAtBottom) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    });
+
+    function updateTime() {
+        const now = new Date();
+        document.getElementById('current-time').textContent = 
+            now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+
+    const scrollTopBtn = document.getElementById('scrollTopBtn');
+
+    chatHistory.addEventListener('scroll', () => {
+        const { scrollTop, scrollHeight, clientHeight } = chatHistory;
+
+        if (scrollTop > 300) {
+            scrollTopBtn.classList.remove('hidden');
+        } else {
+            scrollTopBtn.classList.add('hidden');
+        }
+    });
+
+    scrollTopBtn.addEventListener('click', () => {
+        chatHistory.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
+    });
+
+    function updateScrollIndicators() {
+        const scrollTop = chatHistory.scrollTop;
+        const scrollHeight = chatHistory.scrollHeight - chatHistory.clientHeight;
+        
+        const scrollProgressContainer = document.getElementById('scrollProgressContainer');
+        
+        if (scrollHeight > 200) {
+            scrollProgressContainer.classList.remove('hidden');
+            const progress = (scrollTop / scrollHeight) * 100;
+            scrollProgress.style.height = progress + '%';
+        } else {
+            scrollProgressContainer.classList.add('hidden');
+        }
+    }
+
+    chatHistory.addEventListener('scroll', updateScrollIndicators);
+    updateScrollIndicators();
+
+    // ==================== INITIALISIERUNG ====================
+    
+    checkStatus();
+    setInterval(checkStatus, 5000);
+    
+    shellSection.classList.add('hidden');
+    mainGrid.classList.add('shell-hidden');
+    
+    window.addEventListener('load', () => {
+        syncHeaderOffsets();
+        setTimeout(() => {
+            if (chatInput) {
+                chatInput.focus();
+                chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            initTelegramPolling();
+            refreshMailPanel();
+        }, 500);
+    });
+    setInterval(refreshMailPanel, 60000);
+    
+    console.log('GABI Gateway Dashboard v2.0 mit Modell-Auswahl gestartet');
+
+let currentMail = null;
+
+async function refreshMailPanel() {
+    const display = document.getElementById('mail-display-area');
+    if (!display) return;
+    display.innerHTML = '<div class="text-[var(--text-muted)] text-sm p-2">Lade Mails...</div>';
+    try {
+        const response = await fetch('/api/gmail/list', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const mails = await response.json();
+
+        if (!Array.isArray(mails) || mails.length === 0) {
+            display.innerHTML = '<div class="text-[var(--text-muted)] text-sm p-2">Posteingang leer.</div>';
+            return;
+        }
+
+        display.innerHTML = mails.map(mail => `
+            <button class="w-full text-left p-2 rounded hover:bg-[var(--bg-secondary)] border-b border-[var(--border)]"
+                onclick="loadMailDetail('${mail.id}')">
+                <div class="text-xs text-[var(--text-muted)] truncate">${escapeHtml(mail.from || 'Unbekannt')}</div>
+                <div class="text-sm text-[var(--text-primary)] font-semibold truncate">${escapeHtml(mail.subject || 'Kein Betreff')}</div>
+                <div class="text-xs text-[var(--text-secondary)] truncate">${escapeHtml(mail.snippet || '')}</div>
+            </button>
+        `).join('');
+    } catch (err) {
+        display.innerHTML = `<div class="text-[var(--error)] text-sm p-2">Fehler beim Mail-Sync: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+async function loadMailDetail(messageId) {
+    const detail = document.getElementById('mail-detail-panel');
+    if (!detail) return;
+    detail.innerHTML = '<div class="text-[var(--text-muted)] text-sm">Lade Mail-Details...</div>';
+    try {
+        const response = await fetch(`/api/gmail/message/${messageId}`, {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const mail = await response.json();
+        currentMail = mail;
+
+        detail.innerHTML = `
+            <div class="space-y-3">
+                <div class="border-b border-[var(--border)] pb-2">
+                    <div class="text-lg font-semibold text-[var(--accent)] break-words">${escapeHtml(mail.subject || 'Kein Betreff')}</div>
+                    <div class="text-xs text-[var(--text-secondary)] mt-1">Von: ${escapeHtml(mail.from || 'Unbekannt')}</div>
+                    <div class="text-xs text-[var(--text-secondary)]">An: ${escapeHtml(mail.to || '-')}</div>
+                    <div class="text-xs text-[var(--text-muted)]">${escapeHtml(mail.date || '')}</div>
+                </div>
+                <div class="max-h-56 overflow-y-auto bg-[var(--bg-secondary)] border border-[var(--border)] rounded p-3 text-sm whitespace-pre-wrap">${escapeHtml(mail.body || mail.snippet || '')}</div>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-sm" onclick="insertMailIntoChat()"><i class="fas fa-comment"></i> In Chat übernehmen</button>
+                    <button class="btn btn-sm" onclick="analyzeCurrentMail()"><i class="fas fa-brain"></i> Mit KI analysieren</button>
+                </div>
+                <div>
+                    <label class="text-xs text-[var(--text-muted)]">Antwort</label>
+                    <textarea id="mail-reply-text" class="chat-input mt-1 w-full" rows="4" placeholder="Antworttext..."></textarea>
+                    <div class="mt-2">
+                        <button class="btn btn-sm" onclick="replyCurrentMail()"><i class="fas fa-paper-plane"></i> Antwort senden</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } catch (err) {
+        detail.innerHTML = `<div class="text-[var(--error)] text-sm">Mail konnte nicht geladen werden: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function insertMailIntoChat() {
+    if (!currentMail) return;
+    const text = `Bitte analysiere diese Mail:\nBetreff: ${currentMail.subject || ''}\nVon: ${currentMail.from || ''}\nInhalt:\n${currentMail.body || currentMail.snippet || ''}`;
+    chatInput.value = text;
+    chatInput.focus();
+}
+
+async function analyzeCurrentMail() {
+    if (!currentMail) return;
+    chatInput.value = `Analysiere diese Mail und gib eine kurze Zusammenfassung mit 3 ToDos:\nBetreff: ${currentMail.subject || ''}\nVon: ${currentMail.from || ''}\nInhalt:\n${currentMail.body || currentMail.snippet || ''}`;
+    await sendChat();
+}
+
+async function replyCurrentMail() {
+    if (!currentMail) return;
+    const textarea = document.getElementById('mail-reply-text');
+    const body = (textarea?.value || '').trim();
+    if (!body) {
+        alert('Antworttext fehlt.');
+        return;
+    }
+    try {
+        const response = await fetch(`/api/gmail/reply/${currentMail.id}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ body })
+        });
+        const data = await response.json();
+        if (!response.ok || data.status !== 'success') {
+            throw new Error(data.detail || data.error || data.message || 'Reply fehlgeschlagen');
+        }
+        textarea.value = '';
+        addThinkingStepToChat('Gmail-Antwort gesendet', 'fa-paper-plane');
+    } catch (err) {
+        addThinkingStepToChat(`Gmail-Reply Fehler: ${err.message}`, 'fa-exclamation-triangle');
+    }
+}
+
+async function loadCalendarEvents() {
+    const detail = document.getElementById('mail-detail-panel');
+    if (!detail) return;
+    detail.innerHTML = '<div class="text-[var(--text-muted)] text-sm">Lade Kalendertermine...</div>';
+    try {
+        const response = await fetch('/api/calendar/events?max_results=12', {
+            headers: { 'Authorization': `Bearer ${API_KEY}` }
+        });
+        const data = await response.json();
+        if (!response.ok || data.status !== 'success') throw new Error(data.detail || 'Kalender nicht verfügbar');
+        const events = data.events || [];
+        if (!events.length) {
+            detail.innerHTML = '<div class="text-[var(--text-muted)] text-sm">Keine bevorstehenden Termine.</div>';
+            return;
+        }
+        detail.innerHTML = `
+            <div class="space-y-2">
+                <h3 class="text-[var(--accent)] font-semibold"><i class="far fa-calendar-alt mr-2"></i>Nächste Termine</h3>
+                ${events.map(e => `
+                    <div class="border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
+                        <div class="text-sm font-semibold">${escapeHtml(e.summary || '(Ohne Titel)')}</div>
+                        <div class="text-xs text-[var(--text-secondary)]">${escapeHtml(e.start || '')}</div>
+                        ${e.location ? `<div class="text-xs text-[var(--text-muted)]">📍 ${escapeHtml(e.location)}</div>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (err) {
+        detail.innerHTML = `<div class="text-[var(--error)] text-sm">Kalender-Fehler: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+// Scroll to bottom
+function scrollToBottom() {
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    var btn = document.getElementById('scroll-down-btn');
+    if (btn) btn.classList.add('hidden');
+}
+
+// Check if scrolled up and show/hide scroll button
+chatHistory.addEventListener('scroll', function() {
+    var btn = document.getElementById('scroll-down-btn');
+    if (!btn) return;
+    var isAtBottom = chatHistory.scrollTop + chatHistory.clientHeight >= chatHistory.scrollHeight - 50;
+    if (!isAtBottom) {
+        btn.classList.remove('hidden');
+    } else {
+        btn.classList.add('hidden');
+    }
+});
+
+// ==================== CLICK OUTSIDE TO CLOSE ====================
+// Close panels when clicking outside - SIMPLIFIED
+document.addEventListener('click', function(e) {
+    const toolPanel = document.getElementById('tool-panel');
+    const mailPanel = document.getElementById('mail-panel');
+
+    // Get all toggle buttons
+    const toolsBtn = document.querySelector('button[onclick="toggleTools()"]');
+    const mailsBtn = document.querySelector('button[onclick="toggleMails()"]');
+
+    // Check if click is on toggle buttons
+    const clickedToolsBtn = toolsBtn && (toolsBtn === e.target || toolsBtn.contains(e.target));
+    const clickedMailsBtn = mailsBtn && (mailsBtn === e.target || mailsBtn.contains(e.target));
+
+    // Close tool panel if open and click outside
+    if (!toolPanel.classList.contains('hidden')) {
+        const inToolPanel = toolPanel.contains(e.target);
+        if (!inToolPanel && !clickedToolsBtn) {
+            toolPanel.classList.add('hidden');
+        }
+    }
+
+    // Close mail panel if open and click outside
+    if (!mailPanel.classList.contains('hidden')) {
+        const inMailPanel = mailPanel.contains(e.target);
+        if (!inMailPanel && !clickedMailsBtn) {
+            mailPanel.classList.add('hidden');
+        }
+    }
+});
+
+// Modal: close when clicking outside
+modal?.addEventListener('click', function(e) {
+    if (e.target === modal) {
+        closeModal();
+    }
+});
+</script>
+
+</body>
+</html>

@@ -115,17 +115,18 @@ class RightHemisphere:
     
     def _handle_creative(self, data):
         """Kreative Aufgaben: Gedichte, Geschichten, Ideen"""
-        prompt = data.get("prompt", "")
+        # Unterstütze sowohl "prompt" als auch "content"
+        prompt = data.get("prompt") or data.get("content", "")
         style = data.get("style", "normal")
-        
+
         from gateway.ollama_client import ollama_client
         creative_prompt = f"Sei kreativ: {prompt}\nStil: {style}"
-        
+
         response = ollama_client.chat(
             model="llama3.2",  # Allgemeines Modell
             messages=[{"role": "user", "content": creative_prompt}]
         )
-        return {"result": response}
+        return {"reply": response, "response": response}
     
     def _get_system_prompt(self):
         """Holt den System-Prompt aus dem Memory"""

@@ -1,12 +1,14 @@
 {
-  "updated_at": "2026-02-19T12:42:37.736583",
-  "reason": "idle-1508s",
-  "user_interests": {},
+  "updated_at": "2026-02-19T21:22:10.106456",
+  "reason": "idle-862s",
+  "user_interests": {
+    "allgemein": 4
+  },
   "user_preferences": {
     "positive_feedback": 0,
     "negative_feedback": 0,
-    "message_length": "mittel",
-    "active_time": "unbekannt"
+    "message_length": "kurz",
+    "active_time": "abends"
   },
   "notes_count": 12
 }

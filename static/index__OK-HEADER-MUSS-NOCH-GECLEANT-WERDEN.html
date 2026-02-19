@@ -664,12 +664,40 @@ a[target="_blank"]:hover i {
                     <p class="text-xs text-[var(--text-muted)]">Admin Dashboard v1.0.2</p>
                 </div>
             </div>
+
+            <!-- System Info -->
             <div id="system-info" class="flex flex-wrap items-center gap-3 text-sm max-w-3xl">
                 <div class="flex items-center gap-2">
-                    <span class="text-[var(--text-secondary)]">🧠<span></span>Corpus Callosum</span>
+                    <i class="fas fa-microchip text-[var(--text-muted)]"></i>
+                    <span id="os-info" class="text-[var(--text-secondary)]">System wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-database text-[var(--text-muted)]"></i>
+                    <span id="storage-info" class="text-[var(--text-secondary)]">-</span>
+                </div>
+                <!-- Whisper Status -->
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-microphone text-[var(--text-muted)]"></i>
+                    <span id="whisper-status" class="text-[var(--text-secondary)]">Whisper wird geladen...</span>
+                </div>
+                <!-- Telegram Status -->
+                <div class="flex items-center gap-2">
+                    <i class="fab fa-telegram text-[var(--text-muted)]"></i>
+                    <span id="telegram-status" class="text-[var(--text-secondary)]">Telegram wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-envelope text-[var(--text-muted)]"></i>
+                    <span id="gmail-status" class="text-[var(--text-secondary)]">Gmail wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="far fa-calendar-alt text-[var(--text-muted)]"></i>
+                    <span id="calendar-status" class="text-[var(--text-secondary)]">Kalender wird geladen...</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-palette text-[var(--text-muted)]"></i>
+                    <span id="comfy-status" class="text-[var(--text-secondary)]">Comfy/Invoke wird geladen...</span>
                 </div>
             </div>
-
 
             <!-- LLM Info & Model Selector -->
             <div class="flex items-center gap-3">
@@ -2197,12 +2225,12 @@ async function sendChat() {
         }
     }
 
-    // Telegram-Nachrichten im Chat anzeigen - JETZT mit der korrekten Darstellung
+    // Telegram-Nachrichten im Chat anzeigen
     function displayTelegramMessages(messages) {
         for (const msg of messages) {
             const msgId = createMessageId(msg);
             
-            // Prüfen ob schon im DOM
+            // Prüfen ob schon im DOM (zusätzliche Sicherheit)
             if (document.querySelector(`[data-telegram-id="${msgId}"]`)) continue;
             
             const time = msg.date ? new Date(msg.date).toLocaleTimeString('de-DE') : new Date().toLocaleTimeString('de-DE');
@@ -2217,37 +2245,22 @@ async function sendChat() {
             msgDiv.className = 'fade-in';
             msgDiv.setAttribute('data-telegram-id', msgId);
             
-            // ===== WICHTIG: RICHTIGE DARSTELLUNG =====
-            if (role === 'user') {
-                // Telegram User-Nachricht: RECHTS in BLAU
-                msgDiv.className = 'flex justify-end fade-in';
-                msgDiv.innerHTML = `
-                    <div class="message-user" style="background: linear-gradient(135deg, #0088cc, #00a884);">
-                        <div class="flex items-center gap-2 mb-1 text-xs opacity-80">
-                            <i class="fab fa-telegram"></i>
-                            <span>${escapeHtml(sender)}</span>
-                            <span>·</span>
-                            <span>🕒 ${time}</span>
-                        </div>
-                        <div>${marked.parse(text)}</div>
-                    </div>
-                `;
-            } else {
-                // GABI's Antwort: LINKS mit rotem Rand
-                msgDiv.className = 'flex justify-start fade-in';
-                msgDiv.innerHTML = `
-                    <div class="message-assistant prose prose-invert max-w-none w-full">
-                        <div class="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2 border-b border-[var(--border)] pb-2">
-                            <i class="fab fa-telegram text-[#0088cc]"></i>
-                            <span>${escapeHtml(sender)}</span>
-                            <span>·</span>
-                            <span>🕒 ${time}</span>
-                        </div>
-                        <div>${marked.parse(text)}</div>
-                    </div>
-                `;
-            }
+            // Unterschiedliche Icons für User und Bot
+            const icon = role === 'user' ? 'fa-user' : 'fa-robot';
+            const archiveMessage = isMutedGatewayMessage(text);
+            const borderColor = archiveMessage ? '#4b5563' : (role === 'user' ? '#0088cc' : '#00a884');
             
+            msgDiv.innerHTML = `
+                <div class="message-assistant ${archiveMessage ? 'gateway-muted' : ''}" style="border-left-color: ${borderColor};">
+                    <div class="text-xs text-[var(--text-muted)] mb-2">
+                        <i class="fab fa-telegram text-[#0088cc]"></i> 
+                        <i class="fas ${icon}"></i> ${sender} · 🕒 ${time}${archiveMessage ? ' · 🔕 System' : ''}
+                    </div>
+                    <div class="prose prose-invert">
+                        ${marked.parse(text)}
+                    </div>
+                </div>
+            `;
             chatHistory.appendChild(msgDiv);
         }
         

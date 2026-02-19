@@ -801,11 +801,9 @@ def _get_telegram_target_chat_ids(bot) -> List[Any]:
     """Collect Telegram targets from active sessions and config."""
     targets = set()
 
-    # Aktive Sessions (das sind immer gültige User-IDs)
     if hasattr(bot, "_user_sessions") and isinstance(bot._user_sessions, dict):
         targets.update(bot._user_sessions.keys())
 
-    # Konfigurierte Ziele sammeln
     configured_raw: List[Any] = []
     for key in ("telegram.chat_id", "telegram.channel_id"):
         value = config.get(key)
@@ -824,26 +822,10 @@ def _get_telegram_target_chat_ids(bot) -> List[Any]:
     elif isinstance(chat_ids_value, str) and chat_ids_value.strip():
         configured_raw.extend([part.strip() for part in chat_ids_value.split(",") if part.strip()])
 
-    # Normalisieren und validieren
     for raw in configured_raw:
         normalized = _normalize_telegram_chat_id(raw)
         if normalized is not None:
-            # === FIX: Nur gültige IDs hinzufügen ===
-            # Prüfe ob es wirklich eine gültige Telegram-ID ist:
-            # - Integer (auch negativ für Gruppen/Supergroups)
-            # - String, der mit @ beginnt (für Channel/Group Username)
-            # - String, der nur aus Ziffern besteht (und optional einem führenden -)
-            t_str = str(normalized).strip()
-            is_valid = (
-                isinstance(normalized, int) or  # Direkter Integer
-                t_str.startswith("@") or  # Channel/Group Username
-                t_str.replace("-", "").isdigit()  # Numerischer String (mit optionalem -)
-            )
-            
-            if is_valid:
-                targets.add(normalized)
-            else:
-                logger.debug(f"Ungültige Telegram-Ziel-ID ignoriert: {raw} -> {normalized}")
+            targets.add(normalized)
 
     return list(targets)
 
@@ -2976,7 +2958,6 @@ async def chat_with_gabi(request: ChatRequest, token: str = Header(None, alias="
 
 # ===== NEUER ENDPOINT: GEHIRN-STATUS =====
 @router.get("/brain/status")
-# async def brain_status(_api_key: str = Depends(verify_api_key)): # verlangt nach api key.
 async def brain_status(_api_key: str = Depends(verify_api_key)):
     """🧠 Zeigt den Status von GABIs Gehirnhälften"""
     try:
@@ -4270,7 +4251,6 @@ Das nutzt den Browser-Mechanismus für Audio-Aufnahme:
             "status": "error", 
             "reply": f"❌ Unbekannter Befehl: `{command}`\n\nVerwende `/help` für alle verfügbaren Befehle."
         }
-
 @router.post("/v1/chat/completions")
 async def chat_completions(
     payload: dict,
@@ -4300,7 +4280,6 @@ async def chat_completions(
     except Exception as e:
         logger.error(f"Chat completion error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/v1/models")
 async def list_models(_api_key: str = Depends(verify_api_key)) -> dict[str, Any]:
     """List available Ollama models."""
@@ -4321,11 +4300,9 @@ async def list_models(_api_key: str = Depends(verify_api_key)) -> dict[str, Any]
     except Exception as e:
         logger.error(f"List models error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 # ============ Memory Endpoint ============
 @router.get("/api/memory")
-# async def get_memory(_api_key: str = Depends(verify_api_key)):
-async def get_memory():
+async def get_memory(_api_key: str = Depends(verify_api_key)):
     """Gibt das aktuelle Memory zurück"""
     return {
         "memory": chat_memory.memory_content,
@@ -4338,8 +4315,7 @@ async def get_memory():
 
 # ============ Vision/YOLO Stream Endpoint ============
 @router.get("/api/vision/stream-status")
-# async def get_vision_stream_status(_api_key: str = Depends(verify_api_key)):
-async def get_vision_stream_status():
+async def get_vision_stream_status(_api_key: str = Depends(verify_api_key)):
     """Gibt den Status des YOLO-Streams zurück"""
     vision = get_gabi_vision()
     if not vision:
@@ -4393,7 +4369,6 @@ async def get_vision_stream(_api_key: str = Depends(verify_api_key)):
     except Exception as e:
         return {"active": False, "objects": [], "error": str(e)}
 # Optional: Methode zum manuellen Archivieren
-
 @router.post("/api/memory/archive")
 async def archive_memory(_api_key: str = Depends(verify_api_key)):
     """Manuelles Archivieren des Memory (GET oder POST)"""
@@ -4428,11 +4403,9 @@ async def archive_memory(_api_key: str = Depends(verify_api_key)):
     except Exception as e:
         logger.error(f"Fehler beim Archivieren: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-# 🔥 Memory Reset Endpoint (mit GET und POST)
+# 🔥 NEU: Memory Reset Endpoint (mit GET und POST)
 @router.api_route("/api/memory/reset", methods=["GET", "POST"])
-# async def reset_memory(_api_key: str = Depends(verify_api_key)):
-async def reset_memory():
+async def reset_memory(_api_key: str = Depends(verify_api_key)):
     """Setzt das Memory zurück (Vorsicht!) - GET oder POST"""
     try:
         # 1. Backup erstellen vor dem Zurücksetzen
@@ -4474,11 +4447,9 @@ async def reset_memory():
     except Exception as e:
         logger.error(f"Fehler beim Zurücksetzen des Memory: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 # Optional: Memory-Statistiken
 @router.get("/api/memory/stats")
-# async def memory_stats(_api_key: str = Depends(verify_api_key)):
-async def memory_stats():
+async def memory_stats(_api_key: str = Depends(verify_api_key)):
     """Gibt Statistiken über das Memory zurück"""
     try:
         memory_size = os.path.getsize(MEMORY_FILE) if os.path.exists(MEMORY_FILE) else 0
@@ -4511,7 +4482,6 @@ async def memory_stats():
     except Exception as e:
         logger.error(f"Fehler beim Abrufen der Memory-Statistiken: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 # ============ Shell Executor Endpoints ============
 @router.post("/api/shell/execute")
 async def execute_shell(
@@ -4534,13 +4504,10 @@ async def execute_shell(
     except Exception as e:
         logger.error(f"Shell execution error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/api/shell/allowed")
-# async def list_allowed_commands(_api_key: str = Depends(verify_api_key)) -> dict:
-async def list_allowed_commands() -> dict:
+async def list_allowed_commands(_api_key: str = Depends(verify_api_key)) -> dict:
     """List allowed shell commands."""
     return {"allowed_commands": shell_executor.get_allowed_commands()}
-
 # ============ Gmail Endpoints ============
 @router.get("/api/gmail/mails")
 async def list_gmail_messages(
@@ -4857,7 +4824,7 @@ async def send_telegram_message(
     payload: dict,
     _api_key: str = Depends(verify_api_key),
 ) -> dict:
-    """Send a message to all active Telegram users without ghost errors."""
+    """Send a message to all active Telegram users."""
     message = payload.get("message", "")
     if not message:
         raise HTTPException(status_code=400, detail="Message is required")
@@ -4866,40 +4833,27 @@ async def send_telegram_message(
         bot = get_telegram_bot()
         
         if not bot.bot_token or bot.bot_token == "YOUR_TELEGRAM_BOT_TOKEN":
-            return {"success": False, "error": "Telegram bot not configured"}
+            return {
+                "success": False, 
+                "error": "Telegram bot not configured"
+            }
 
         if not bot.application or not bot.application.bot:
             return {"success": False, "error": "Telegram bot not initialized"}
 
-        # 1. Empfänger-Parsing
-        raw_targets = payload.get("chat_ids") or payload.get("chat_id")
-        explicit_targets = _parse_explicit_telegram_targets(raw_targets)
+        explicit_targets = _parse_explicit_telegram_targets(payload.get("chat_ids"))
+        if not explicit_targets and payload.get("chat_id") is not None:
+            explicit_targets = _parse_explicit_telegram_targets(payload.get("chat_id"))
 
-        # === FIX: Validierung der IDs ===
-        # Wir filtern Wörter (wie "ich", "no") heraus. Nur echte IDs oder @Handles bleiben.
-        valid_targets = []
-        if explicit_targets:
-            for t in explicit_targets:
-                t_str = str(t).strip()
-                # Prüft: Ist es eine Zahl (auch negativ für Gruppen) oder ein @Handle?
-                if t_str.replace("-", "").isdigit() or t_str.startswith("@"):
-                    valid_targets.append(t_str)
-        
-        # Wenn nach dem Filtern keine explizite ID übrig ist (weil es Text war),
-        # nehmen wir die Standard-Empfänger (Dich).
-        target_chat_ids = valid_targets or _get_telegram_target_chat_ids(bot)
-        
+        target_chat_ids = explicit_targets or _get_telegram_target_chat_ids(bot)
         if not target_chat_ids:
             return {
                 "success": False,
-                "error": "Keine gültigen Telegram-Ziele gefunden."
+                "error": "Keine Telegram-Ziele gefunden. Setze telegram.chat_id, telegram.channel_id oder telegram.chat_ids in config.yaml."
             }
 
         sent_count = 0
-        failed_count = 0  # === FIX: Korrekt initialisieren ===
-        real_errors = []
-        
-        # 2. Senden
+        errors = []
         for chat_id in target_chat_ids:
             try:
                 await bot.application.bot.send_message(
@@ -4909,34 +4863,15 @@ async def send_telegram_message(
                 )
                 sent_count += 1
             except Exception as e:
-                # === FIX: Nur bei tatsächlichem Fehler erhöhen ===
-                failed_count += 1
-                real_errors.append(f"Chat {chat_id}: {str(e)}")
+                errors.append(f"Chat {chat_id}: {str(e)}")
 
-        # 3. Saubere Rückmeldung - Korrekte Logik
-        if sent_count > 0 and failed_count == 0:
-            return {
-                "success": True,
-                "message": f"✅ Nachricht an {sent_count} Benutzer gesendet",
-                "sent_count": sent_count,
-                "failed_count": 0
-            }
-        elif sent_count > 0 and failed_count > 0:
-            return {
-                "success": True,
-                "message": f"✅ Nachricht an {sent_count} Benutzer gesendet\n❌ Fehlgeschlagen: {failed_count}",
-                "sent_count": sent_count,
-                "failed_count": failed_count,
-                "errors": real_errors
-            }
-        else:
-            return {
-                "success": False,
-                "message": f"❌ Konnte an keinen Benutzer senden",
-                "sent_count": 0,
-                "failed_count": failed_count,
-                "errors": real_errors
-            }
+        return {
+            "success": sent_count > 0,
+            "message": f"Nachricht an {sent_count}/{len(target_chat_ids)} Ziele gesendet",
+            "targets": target_chat_ids,
+            "sent_count": sent_count,
+            "errors": errors if errors else None
+        }
 
     except Exception as e:
         logger.error(f"Telegram send error: {e}")

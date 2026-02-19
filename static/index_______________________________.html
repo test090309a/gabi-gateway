@@ -664,30 +664,7 @@ a[target="_blank"]:hover i {
                     <p class="text-xs text-[var(--text-muted)]">Admin Dashboard v1.0.2</p>
                 </div>
             </div>
-            <div id="system-info" class="flex flex-wrap items-center gap-3 text-sm max-w-3xl">
-                <div class="flex items-center gap-2">
-                    <span class="text-[var(--text-secondary)]">🧠<span></span>Corpus Callosum</span>
-                </div>
-            </div>
 
-
-            <!-- LLM Info & Model Selector -->
-            <div class="flex items-center gap-3">
-                <div class="text-right">
-                    <div class="flex items-center gap-2" style="display: block;">
-                        <i class="fas fa-brain text-[var(--accent)]"></i>
-                        <select id="model-selector" class="model-select">
-                            <option value="">Modelle laden...</option>
-                        </select>
-                    </div>
-                    <div id="llm-status" class="text-xs flex items-center gap-1 mt-1" style="display: block;">
-                        <span class="status-badge status-offline">
-                            <i class="fas fa-circle text-xs"></i>
-                            Prüfe Verbindung...
-                        </span>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -708,8 +685,11 @@ a[target="_blank"]:hover i {
                 Mails
             </button>
         </div>
-        <div class="flex gap-2 text-xs text-[var(--text-muted)]">
-            <span><i class="far fa-clock"></i> <span id="current-time"></span></span>
+        <div class="flex gap-2 text-xs ">
+            <span><i class="text-[var(--text-muted) far fa-clock"></i> <span id="current-time"></span></span>
+        </div>
+        <div class="flex gap-2 text-xs ">
+            <span class="text-[var(--text-muted)]">🧠<span></span>Corpus Callosum</span>
         </div>
     </div>
 </div>
@@ -782,6 +762,9 @@ a[target="_blank"]:hover i {
         </div>
     </div>
 </div>
+
+
+
 
 <!-- MAIN GRID -->
 <main id="main-grid" class="main-grid">
@@ -945,6 +928,27 @@ a[target="_blank"]:hover i {
     // let telegramPollingInterval = null;
     // let lastTelegramUpdate = 0;
     // let displayedTelegramMessages = new Set(); // Speichert bereits angezeigte Nachrichten-IDs
+
+// GANZ AM ENDE DES SCRIPTS - Sofortiger Fokus
+(function setInitialFocus() {
+    if (chatInput) {
+        chatInput.focus();
+        chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        console.log('✅ Fokus direkt gesetzt');
+    } else {
+        console.warn('⚠️ chatInput nicht gefunden, versuche es später');
+        setTimeout(() => {
+            const input = document.getElementById('chat-input');
+            if (input) {
+                input.focus();
+                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                console.log('✅ Fokus nach Verzögerung gesetzt');
+            }
+        }, 100);
+    }
+})();
+
+
 
     // ==================== WHISPER VARIABLEN ====================
     let mediaRecorder = null;
@@ -2197,12 +2201,12 @@ async function sendChat() {
         }
     }
 
-    // Telegram-Nachrichten im Chat anzeigen - JETZT mit der korrekten Darstellung
+    // Telegram-Nachrichten im Chat anzeigen
     function displayTelegramMessages(messages) {
         for (const msg of messages) {
             const msgId = createMessageId(msg);
             
-            // Prüfen ob schon im DOM
+            // Prüfen ob schon im DOM (zusätzliche Sicherheit)
             if (document.querySelector(`[data-telegram-id="${msgId}"]`)) continue;
             
             const time = msg.date ? new Date(msg.date).toLocaleTimeString('de-DE') : new Date().toLocaleTimeString('de-DE');
@@ -2217,37 +2221,22 @@ async function sendChat() {
             msgDiv.className = 'fade-in';
             msgDiv.setAttribute('data-telegram-id', msgId);
             
-            // ===== WICHTIG: RICHTIGE DARSTELLUNG =====
-            if (role === 'user') {
-                // Telegram User-Nachricht: RECHTS in BLAU
-                msgDiv.className = 'flex justify-end fade-in';
-                msgDiv.innerHTML = `
-                    <div class="message-user" style="background: linear-gradient(135deg, #0088cc, #00a884);">
-                        <div class="flex items-center gap-2 mb-1 text-xs opacity-80">
-                            <i class="fab fa-telegram"></i>
-                            <span>${escapeHtml(sender)}</span>
-                            <span>·</span>
-                            <span>🕒 ${time}</span>
-                        </div>
-                        <div>${marked.parse(text)}</div>
-                    </div>
-                `;
-            } else {
-                // GABI's Antwort: LINKS mit rotem Rand
-                msgDiv.className = 'flex justify-start fade-in';
-                msgDiv.innerHTML = `
-                    <div class="message-assistant prose prose-invert max-w-none w-full">
-                        <div class="text-xs text-[var(--text-muted)] mb-2 flex items-center gap-2 border-b border-[var(--border)] pb-2">
-                            <i class="fab fa-telegram text-[#0088cc]"></i>
-                            <span>${escapeHtml(sender)}</span>
-                            <span>·</span>
-                            <span>🕒 ${time}</span>
-                        </div>
-                        <div>${marked.parse(text)}</div>
-                    </div>
-                `;
-            }
+            // Unterschiedliche Icons für User und Bot
+            const icon = role === 'user' ? 'fa-user' : 'fa-robot';
+            const archiveMessage = isMutedGatewayMessage(text);
+            const borderColor = archiveMessage ? '#4b5563' : (role === 'user' ? '#0088cc' : '#00a884');
             
+            msgDiv.innerHTML = `
+                <div class="message-assistant ${archiveMessage ? 'gateway-muted' : ''}" style="border-left-color: ${borderColor};">
+                    <div class="text-xs text-[var(--text-muted)] mb-2">
+                        <i class="fab fa-telegram text-[#0088cc]"></i> 
+                        <i class="fas ${icon}"></i> ${sender} · 🕒 ${time}${archiveMessage ? ' · 🔕 System' : ''}
+                    </div>
+                    <div class="prose prose-invert">
+                        ${marked.parse(text)}
+                    </div>
+                </div>
+            `;
             chatHistory.appendChild(msgDiv);
         }
         
@@ -2652,6 +2641,57 @@ Memory Statistiken:
     let commandHistory = [];
     let historyIndex = -1;
 
+// Command History Event Listener - ROBUSTER
+function initCommandHistory() {
+    if (!chatInput) {
+        console.warn('chatInput not available yet');
+        return;
+    }
+    
+    // Entferne vorhandene Listener, um Duplikate zu vermeiden
+    chatInput.removeEventListener('keydown', handleCommandHistory);
+    chatInput.addEventListener('keydown', handleCommandHistory);
+    console.log('Command history initialized');
+}
+    
+function handleCommandHistory(e) {
+    // Handle Up/Down arrow keys for command history
+    if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (historyIndex < commandHistory.length - 1) {
+            historyIndex++;
+            chatInput.value = commandHistory[commandHistory.length - 1 - historyIndex] || '';
+            // Cursor ans Ende setzen
+            chatInput.selectionStart = chatInput.selectionEnd = chatInput.value.length;
+        }
+    } 
+    else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex > 0) {
+            historyIndex--;
+            chatInput.value = commandHistory[commandHistory.length - 1 - historyIndex] || '';
+            // Cursor ans Ende setzen
+            chatInput.selectionStart = chatInput.selectionEnd = chatInput.value.length;
+        } else if (historyIndex === 0) {
+            historyIndex = -1;
+            chatInput.value = '';
+        }
+    } 
+    else if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const cmd = chatInput.value.trim();
+        if (cmd) {
+            // Zur History hinzufügen (keine Duplikate)
+            if (commandHistory[commandHistory.length - 1] !== cmd) {
+                commandHistory.push(cmd);
+                if (commandHistory.length > 50) commandHistory.shift();
+            }
+            historyIndex = -1;
+            sendChat();
+        }
+    }
+}
+
     chatInput.addEventListener('keydown', (e) => {
         // Handle Up/Down arrow keys for command history
         if (e.key === 'ArrowUp') {
@@ -2720,6 +2760,13 @@ Memory Statistiken:
             if (!files.length) return;
             addThinkingStepToChat(`Datei-Drop erkannt (${files.length})`, 'fa-upload');
             await handleFileUpload(files);
+        });
+
+        // Autofocus auf Input bei Klick auf Chat-Bereich
+        chatSection.addEventListener('click', () => {
+            if (chatInput) {
+                chatInput.focus();
+            }
         });
     }
 
@@ -2830,6 +2877,22 @@ Memory Statistiken:
 
     // ==================== INITIALISIERUNG ====================
 
+document.addEventListener('DOMContentLoaded', function() {
+    // Stelle sicher, dass chatInput verfügbar ist
+    if (chatInput) {
+        chatInput.focus();
+        chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        initCommandHistory();
+    }
+});
+
+// Backup: Falls DOMContentLoaded schon vorbei war
+if (chatInput) {
+    chatInput.focus();
+    chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    initCommandHistory();
+}
+
     checkStatus();
     checkTelegramMessages(); // Telegram-Nachrichten beim Start laden
     setInterval(checkStatus, 5000);
@@ -2838,6 +2901,13 @@ Memory Statistiken:
     shellSection.classList.add('hidden');
     mainGrid.classList.add('shell-hidden');
     
+// DIREKT FOKUS SETZEN - OHNE VERZÖGERUNG
+if (chatInput) {
+    chatInput.focus();
+    chatInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+
     window.addEventListener('load', () => {
         syncHeaderOffsets();
         setTimeout(() => {
@@ -3046,6 +3116,8 @@ modal?.addEventListener('click', function(e) {
         closeModal();
     }
 });
+
+
 </script>
 
 </body>

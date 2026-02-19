@@ -100,18 +100,20 @@ class RightHemisphere:
         # Unterstütze sowohl "message" als auch "content" (für Corpus Callosum)
         message = data.get("message") or data.get("content", "")
         context = data.get("context", []) or data.get("hemisphere_history", [])
-        
+
         messages = [{"role": "system", "content": self._get_system_prompt()}]
         # Kontext aus Corpus Callosum oder globalem Context
         if isinstance(context, list):
             messages.extend(context[-10:])  # Letzte 10 Nachrichten
         messages.append({"role": "user", "content": message})
-        
+
         response = ollama_client.chat(
             model=self.active_model,
             messages=messages
         )
-        return {"reply": response, "response": response, "success": True}
+        # Extrahiere nur den Text aus der Antwort
+        reply_text = response.get("message", {}).get("content", "") if isinstance(response, dict) else str(response)
+        return {"reply": reply_text, "response": reply_text, "success": True, "model_used": self.active_model}
     
     def _handle_creative(self, data):
         """Kreative Aufgaben: Gedichte, Geschichten, Ideen"""
@@ -126,7 +128,9 @@ class RightHemisphere:
             model="llama3.2",  # Allgemeines Modell
             messages=[{"role": "user", "content": creative_prompt}]
         )
-        return {"reply": response, "response": response, "success": True}
+        # Extrahiere nur den Text aus der Antwort
+        reply_text = response.get("message", {}).get("content", "") if isinstance(response, dict) else str(response)
+        return {"reply": reply_text, "response": reply_text, "success": True, "model_used": "llama3.2"}
     
     def _get_system_prompt(self):
         """Holt den System-Prompt aus dem Memory"""

@@ -131,13 +131,13 @@ class CorpusCallosum:
         # Extrahierte Antwort aus dem Resultat
         assistant_reply = ""
         if "reply" in result:
-            assistant_reply = result["reply"]
+            assistant_reply = str(result["reply"]) if result["reply"] else ""
         elif "result" in result:
-            assistant_reply = str(result["result"])
+            assistant_reply = str(result["result"]) if result["result"] else ""
         elif "response" in result:
-            assistant_reply = result["response"]
+            assistant_reply = str(result["response"]) if result["response"] else ""
         elif "text" in result:
-            assistant_reply = result["text"]
+            assistant_reply = str(result["text"]) if result["text"] else ""
         else:
             assistant_reply = "(keine Text-Antwort)"
         
@@ -179,11 +179,19 @@ class CorpusCallosum:
         """Erkennt den Typ einer Aufgabe anhand des Inhalts"""
         if not content:
             return "chat"
-            
+
         content_lower = content.lower()
-        
+
+        # === WEB-SUCHE (höchste Priorität für Informationen) ===
+        search_triggers = ["suche nach", "such nach", "finde heraus", "recherchiere",
+            "google mal", "such mal", "was ist", "wer ist", "informationen über",
+            "infos zu", "news zu", "artikel über", "erzähl mir von", "was bedeutet",
+            "wie funktioniert", "erkläre mir"]
+        if any(trigger in content_lower for trigger in search_triggers):
+            return "search"
+
         # === LINKE HEMISPHÄRE (analytisch) ===
-        
+
         # Shell-Befehle (höchste Priorität)
         if content.startswith('/shell') or content.startswith('shell'):
             return "shell"

@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import sys
-import json
-import urllib.parse
-import urllib.request
-import ssl
-import re  # <-- Explizit importieren
-import time
+import sys, json, urllib.parse, urllib.request, ssl, re, time
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 
@@ -32,8 +26,7 @@ class WebSearch:
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=5, context=ctx) as r:
                 return r.read().decode(r.headers.get_content_charset() or 'utf-8', errors='replace')
-        except Exception as e:
-            return ""
+        except: return ""
 
     def get_deep_image(self, url):
         """Besucht die Zielseite, um ein echtes Vorschaubild zu finden"""
@@ -50,8 +43,7 @@ class WebSearch:
                 src = img.get('data-src') or img.get('src') or img.get('data-lazy-src')
                 if src and not any(x in src.lower() for x in ['pixel', 'tracker', 'icon', 'logo', 'button', '.ico']):
                     return self.clean_url(src, url)
-        except: 
-            pass
+        except: pass
         return ""
 
     def clean_url(self, url, base_url):
@@ -67,20 +59,13 @@ class WebSearch:
                 link = item.select_one(selectors['link'])
                 if not link: continue
                 raw_url = link.get('href', '')
-                
-                # === WICHTIG: HIER WIRD re VERWENDET ===
-                import re  # <-- Explizit hier nochmal importieren für Sicherheit
-                
                 if 'uddg=' in raw_url:
-                    raw_url = urllib.parse.parse_qs(urllib.parse.urlparse(raw_url).query).get('uddg', [''])[0]
+                    raw_url = urllib.parse.parse_qs(urllib.parse.urlparse(raw_url).query)['uddg'][0]
                 elif 'url=' in raw_url:
                     match = re.search(r'url=([^&]+)', raw_url)
-                    if match: 
-                        raw_url = urllib.parse.unquote(match.group(1))
-                
+                    if match: raw_url = urllib.parse.unquote(match.group(1))
                 url = self.clean_url(raw_url, domain)
                 title = link.get_text(strip=True)
-                
                 if url and url not in self.seen_urls and len(title) > 3:
                     snippet = ""
                     for s in selectors['snips']:
@@ -88,21 +73,17 @@ class WebSearch:
                         if snip_el:
                             snippet = snip_el.get_text(strip=True)
                             break
-                    
                     img_url = ""
                     img_el = item.find('img')
                     if img_el:
                         for attr in ['data-src', 'srcset', 'src']:
                             val = img_el.get(attr)
                             if val and not val.endswith('.ico') and 'data:image' not in val:
-                                if ',' in val: 
-                                    val = val.split(',')[0].split(' ')[0]
+                                if ',' in val: val = val.split(',')[0].split(' ')[0]
                                 img_url = self.clean_url(val, domain)
                                 break
-                    
                     if not img_url:
                         img_url = self.get_deep_image(url)
-                    
                     results.append({
                         'title': title, 
                         'url': url, 
@@ -110,17 +91,16 @@ class WebSearch:
                         'image': img_url
                     })
                     self.seen_urls.add(url)
-            except Exception as e:
-                continue
+            except: continue
         return results
 
     def search(self, query, max_results=80, start=0):
         # Startpage nutzt 'start' (0, 10, 20...) - wir runden auf 10er Schritte auf für bessere Kompatibilität
         sp_start = (start // 10) * 10 
         configs = [
-            (f"https://www.startpage.com/sp/search?query={urllib.parse.quote(query)}&start={sp_start}", 
+            (f"https://www.startpage.com/sp/search?query={urllib.parse.quote(query)}&start={start}", 
              {'item': ".w-gl__result, .result", 'link': "a.w-gl__result-title, .result-title", 'snips': ['.w-gl__description', '.result-description']}, "https://www.startpage.com"),
-            (f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}&s={sp_start}", 
+            (f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}&s={start}", 
              {'item': '.result', 'link': '.result__a', 'snips': ['.result__snippet']}, "https://duckduckgo.com")
         ]
         all_results = []
@@ -133,27 +113,10 @@ class WebSearch:
         return all_results[:max_results]
 
 def main():
-    if len(sys.argv) < 2:
-        print(json.dumps({"ok": False, "error": "Keine Suchanfrage angegeben"}, ensure_ascii=False))
-        return
-    
-    query = sys.argv[1]
+    query = sys.argv[1] if len(sys.argv) > 1 else ""
     start_idx = int(sys.argv[2]) if len(sys.argv) > 2 else 0
-    
-    try:
-        searcher = WebSearch()
-        results = searcher.search(query, start=start_idx)
-        print(json.dumps({
-            "ok": True, 
-            "query": query,
-            "results": results,
-            "count": len(results)
-        }, ensure_ascii=False, indent=2))
-    except Exception as e:
-        print(json.dumps({
-            "ok": False, 
-            "error": str(e)
-        }, ensure_ascii=False))
+    res = WebSearch().search(query, start=start_idx) if query else []
+    print(json.dumps({"ok": bool(res), "results": res}, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":
     main()

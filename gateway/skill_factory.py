@@ -89,6 +89,9 @@ KNOWN_LIBRARIES = {
     "rabbitmq": "pika",
     "sms": "twilio",
     "phone": "twilio",
+    "blender": "bpy",            # ← NEU
+    "3d": "bpy",                 # ← NEU  
+    "mathutils": "mathutils",    # ← NEU
 }
 
 

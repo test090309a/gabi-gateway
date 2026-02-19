@@ -64,5 +64,11 @@
     "text": "justin ist sein bruder.",
     "timestamp": "2026-02-18T00:26:58.012174",
     "source": "command"
+  },
+  {
+    "id": "20260218_154910_254558",
+    "text": "/shell python -c \"import pyautogui; pyautogui.moveTo(500, 500, duration=3); print('Maus bewegt!')\" damit bewegst du die maus.",
+    "timestamp": "2026-02-18T15:49:10.254558",
+    "source": "command"
   }
 ]

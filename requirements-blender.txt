@@ -1,0 +1,106 @@
+# === KERN ===
+fastapi==0.115.8
+uvicorn[standard]==0.34.0
+pydantic==2.10.6
+python-multipart==0.0.20
+PyYAML==6.0.2
+httpx==0.28.1
+requests==2.32.3
+
+# === OLLAMA & AI ===
+ollama==0.4.7
+
+# === GPU-VISION (BLENDER) ===
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+--index-url https://download.pytorch.org/whl/cu118  # Für CUDA 11.8
+
+# === BILDERKENNUNG & GUI ===
+opencv-python==4.11.0.86
+opencv-contrib-python==4.11.0.86
+pyautogui==0.9.54
+Pillow==11.1.0
+mss==10.0.0
+keyboard==0.13.5
+pygetwindow==0.0.9
+pynput==1.8.0
+
+# === WISSENSCHAFTLICHES RECHNEN ===
+numpy==2.2.2
+scipy==1.15.2
+pandas==2.2.3
+matplotlib==3.10.0
+
+# === TELEGRAM BOT ===
+python-telegram-bot==21.10
+python-telegram-bot[job-queue]==21.10
+
+# === GOOGLE SERVICES ===
+google-auth==2.38.0
+google-auth-oauthlib==1.2.1
+google-auth-httplib2==0.2.0
+google-api-python-client==2.161.0
+google-cloud==0.34.0
+google-cloud-translate==3.17.2
+
+# === GMAIL / CALENDAR ===
+google-api-core==2.24.1
+googleapis-common-protos==1.66.0
+
+# === WHISPER (Audio) ===
+whisper==1.1.10
+
+# === WEB SCRAPING & SEARCH ===
+beautifulsoup4==4.13.3
+requests==2.32.3
+fake-useragent==2.0.3
+playwright==1.49.1
+lxml==5.3.1
+
+# === DATENBANKEN ===
+sqlalchemy==2.0.38
+sqlite3  # in Python integriert
+psycopg2-binary==2.9.10
+pymongo==4.11.1
+redis==5.2.1
+
+# === ENTWICKLUNG & DEBUGGING ===
+colorlog==6.9.0
+python-dotenv==1.0.1
+watchfiles==1.0.4
+
+# === TESTS ===
+pytest==8.3.4
+pytest-asyncio==0.25.3
+pytest-cov==6.0.0
+
+# === ZUSATZTOOLS ===
+# Für Bild- und Videoverarbeitung
+imageio==2.36.1
+imageio-ffmpeg==0.6.0
+scikit-image==0.25.2
+
+# Für PDF-Verarbeitung
+PyPDF2==3.0.1
+pdfplumber==0.11.5
+PyMuPDF==1.25.2
+
+# Für Excel
+openpyxl==3.1.5
+
+# Für Verschlüsselung
+cryptography==44.0.0
+
+# Für Docker-Integration
+docker==7.1.0
+
+# Für Git-Integration
+GitPython==3.1.44
+
+# Für Kubernetes
+kubernetes==32.0.0
+
+# === OPTIONAL (nur wenn gebraucht) ===
+# Für Blender (bpy ist in Blender integriert, nicht pip-installierbar!)
+# mathutils ist in Blender integriert

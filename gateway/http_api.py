@@ -34,7 +34,12 @@ from integrations.google_calendar_client import get_calendar_client
 from integrations.whisper_client import get_whisper_client
 from integrations.telegram_bot import get_telegram_bot
 from integrations.gui_controller import get_gui_controller
-from integrations.gui_controller import get_gui_controller
+
+# === GABI VISION ===
+try:
+    from integrations.gabi_vision import get_gabi_vision
+except ImportError:
+    get_gabi_vision = None
 
 # === DYNAMIC HOT-RELOAD SYSTEM ===
 # Registry für dynamisch geladene Integrationen
@@ -206,10 +211,8 @@ _DISCOVERY_CACHE: Dict[str, Any] = {"ts": None, "data": {}}
 _CHAT_PROGRESS: Dict[str, Dict[str, Any]] = {}
 _CHAT_PROGRESS_LOCK = threading.Lock()
 
-
 class ChatCancelled(Exception):
     """Raised when a chat request has been cancelled by the user."""
-
 
 def _log_whisper_state(available: bool, models: List[str]) -> None:
     """Log Whisper status only on state changes to avoid polling noise."""
@@ -227,7 +230,6 @@ def _log_whisper_state(available: bool, models: List[str]) -> None:
             logger.warning("Whisper ist ausgefallen")
         _LAST_WHISPER_STATE = available
 
-
 def _extract_model_score(name: str) -> float:
     """Heuristic score for model size from its name (supports 1.2b, 24b, 70b)."""
     lowered = (name or "").lower()
@@ -238,7 +240,6 @@ def _extract_model_score(name: str) -> float:
         except ValueError:
             return 0.0
     return 0.0
-
 
 def _pick_best_model(
     available: List[str],
@@ -266,7 +267,6 @@ def _pick_best_model(
 
     return sorted(pool, key=_extract_model_score, reverse=True)[0] if pool else None
 
-
 def _as_model_pref_list(raw: Any) -> List[str]:
     """Normalize model preference setting to a list of non-empty strings."""
     if raw is None:
@@ -279,7 +279,6 @@ def _as_model_pref_list(raw: Any) -> List[str]:
     if "," in text:
         return [part.strip() for part in text.split(",") if part.strip()]
     return [text]
-
 
 def _pick_preferred_available(available: List[str], preferred: List[str]) -> Optional[str]:
     """Pick first preferred model present in available list (exact, then fuzzy contains)."""
@@ -296,7 +295,6 @@ def _pick_preferred_available(available: List[str], preferred: List[str]) -> Opt
             if pref_l in model.lower():
                 return model
     return None
-
 
 def _pick_fast_model(available: List[str]) -> Optional[str]:
     """Pick a fast/small model for routing/self-check tasks."""
@@ -321,7 +319,6 @@ def _pick_fast_model(available: List[str]) -> Optional[str]:
         return score if score > 0 else 9999.0
 
     return sorted(fast_candidates, key=fast_key)[0] if fast_candidates else None
-
 
 def _extract_json_object(raw: str) -> Optional[Dict[str, Any]]:
     """Extract and parse first JSON object from a raw model response."""
@@ -351,7 +348,6 @@ def _extract_json_object(raw: str) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
     return None
-
 
 def _extract_ollama_text(payload: Any) -> str:
     """Extract textual content from varied Ollama response shapes."""
@@ -383,21 +379,17 @@ def _extract_ollama_text(payload: Any) -> str:
         return "\n".join([c for c in chunks if c]).strip()
     return str(payload).strip()
 
-
 async def _ollama_chat_async(*, model: str, messages: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
     """Run blocking Ollama chat call in worker thread."""
     return await asyncio.to_thread(ollama_client.chat, model=model, messages=messages, **kwargs)
-
 
 async def _ollama_generate_async(*, model: str, prompt: str, **kwargs) -> Dict[str, Any]:
     """Run blocking Ollama generate call in worker thread."""
     return await asyncio.to_thread(ollama_client.generate, model=model, prompt=prompt, **kwargs)
 
-
 async def _ollama_list_models_async() -> Dict[str, Any]:
     """Run blocking Ollama model listing in worker thread."""
     return await asyncio.to_thread(ollama_client.list_models)
-
 
 def _run_fast_router_check(
     user_message: str,
@@ -494,7 +486,6 @@ def _run_fast_router_check(
             "prefer_fast": False,
         }
 
-
 def _is_complex_request(msg: str) -> bool:
     if not msg:
         return False
@@ -507,7 +498,6 @@ def _is_complex_request(msg: str) -> bool:
     ]
     long_text = len(text) > 140 or len(text.split()) > 22
     return long_text or any(sig in text for sig in complexity_signals)
-
 
 def _auto_select_model(
     user_message: str,
@@ -661,7 +651,6 @@ def _auto_select_model(
     _progress_add(progress_id, f"Model-Routing: fallback -> {final_model}", "fa-code-branch")
     return final_model
 
-
 def _normalize_telegram_chat_id(raw_id: Any) -> Optional[Any]:
     """Normalize chat id from config/session to int or @name string."""
     if raw_id is None:
@@ -676,7 +665,6 @@ def _normalize_telegram_chat_id(raw_id: Any) -> Optional[Any]:
     if text.startswith("@"):
         return text
     return f"@{text}"
-
 
 def _should_enable_self_qa(user_message: str, router_hint: Optional[Dict[str, Any]] = None) -> bool:
     """Enable lightweight self-questioning for complex or explicitly requested deep tasks."""
@@ -698,7 +686,6 @@ def _should_enable_self_qa(user_message: str, router_hint: Optional[Dict[str, An
     explicit = any(t in msg for t in explicit_terms)
     complex_hint = bool((router_hint or {}).get("complexity") == "high")
     return explicit or complex_hint or _is_complex_request(msg)
-
 
 def _run_self_qa_precheck(
     user_message: str,
@@ -810,7 +797,6 @@ def _run_self_qa_precheck(
         )
         return {"analysis_context": "", "thinking_steps": thinking_steps}
 
-
 def _get_telegram_target_chat_ids(bot) -> List[Any]:
     """Collect Telegram targets from active sessions and config."""
     targets = set()
@@ -843,7 +829,6 @@ def _get_telegram_target_chat_ids(bot) -> List[Any]:
 
     return list(targets)
 
-
 def _parse_explicit_telegram_targets(raw_targets: Any) -> List[Any]:
     """Parse explicit Telegram targets from API payload."""
     parsed: List[Any] = []
@@ -863,7 +848,6 @@ def _parse_explicit_telegram_targets(raw_targets: Any) -> List[Any]:
 
     return parsed
 
-
 def _infer_model_capabilities(name: str, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Infer practical model capabilities from model name/details."""
     lowered = (name or "").lower()
@@ -877,7 +861,6 @@ def _infer_model_capabilities(name: str, details: Optional[Dict[str, Any]] = Non
         "vision": supports_vision,
         "tools": supports_tools,
     }
-
 
 def _pick_vision_model(available: List[str], requested_model: Optional[str] = None) -> Optional[str]:
     """Pick a model that can process images."""
@@ -902,7 +885,6 @@ def _pick_vision_model(available: List[str], requested_model: Optional[str] = No
             return sorted(hinted, key=_extract_model_score, reverse=True)[0]
     return sorted(vision_candidates, key=_extract_model_score, reverse=True)[0]
 
-
 def _extract_search_term(text: str, triggers: List[str]) -> str:
     raw = (text or "").strip()
     lowered = raw.lower()
@@ -923,7 +905,6 @@ def _extract_search_term(text: str, triggers: List[str]) -> str:
     term = re.sub(r"\s+(?:als|bitte|danke|tabellarisch|json|tabelle)$", "", term, flags=re.IGNORECASE)
     return term.strip(' "')
 
-
 def _wants_summary_after_search(text: str) -> bool:
     lowered = (text or "").lower()
     summary_terms = [
@@ -936,7 +917,6 @@ def _wants_summary_after_search(text: str) -> bool:
         "ergebnis",
     ]
     return any(t in lowered for t in summary_terms)
-
 
 def _scan_image_models(max_items: int = 30) -> List[str]:
     """Look for common image model files from ComfyUI/Invoke and known model dirs."""
@@ -981,7 +961,6 @@ def _scan_image_models(max_items: int = 30) -> List[str]:
                 continue
     return sorted(results)
 
-
 def _is_tcp_port_open(host: str, port: int, timeout: float = 0.35) -> bool:
     """Best-effort TCP port probe."""
     try:
@@ -989,7 +968,6 @@ def _is_tcp_port_open(host: str, port: int, timeout: float = 0.35) -> bool:
             return True
     except Exception:
         return False
-
 
 def _get_tool_discovery(force: bool = False) -> Dict[str, Any]:
     """Discover optional local AI tools (ComfyUI/Invoke) with lightweight caching."""
@@ -1046,7 +1024,6 @@ def _get_tool_discovery(force: bool = False) -> Dict[str, Any]:
     _DISCOVERY_CACHE = {"ts": now, "data": data}
     return data
 
-
 def _start_comfyui(discovery: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Try to start ComfyUI if installation is known."""
     info = discovery or _get_tool_discovery(force=True)
@@ -1072,7 +1049,6 @@ def _start_comfyui(discovery: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
     except Exception as e:
         return {"ok": False, "message": str(e)}
 
-
 def _progress_init(request_id: str) -> None:
     with _CHAT_PROGRESS_LOCK:
         _CHAT_PROGRESS[request_id] = {
@@ -1082,7 +1058,6 @@ def _progress_init(request_id: str) -> None:
             "cancelled": False,
             "active_model": None,
         }
-
 
 def _progress_add(request_id: Optional[str], text: str, icon: str = "fa-brain", details: str = "") -> None:
     if not request_id:
@@ -1101,7 +1076,6 @@ def _progress_add(request_id: Optional[str], text: str, icon: str = "fa-brain", 
         state["steps"].append(entry)
         state["updated_at"] = datetime.now().isoformat()
 
-
 def _progress_set_active_model(request_id: Optional[str], model: Optional[str]) -> None:
     if not request_id:
         return
@@ -1110,7 +1084,6 @@ def _progress_set_active_model(request_id: Optional[str], model: Optional[str]) 
         if state is not None:
             state["active_model"] = model
             state["updated_at"] = datetime.now().isoformat()
-
 
 def _progress_mark_done(request_id: Optional[str]) -> None:
     if not request_id:
@@ -1121,14 +1094,12 @@ def _progress_mark_done(request_id: Optional[str]) -> None:
             state["done"] = True
             state["updated_at"] = datetime.now().isoformat()
 
-
 def _progress_cancel(request_id: str) -> None:
     with _CHAT_PROGRESS_LOCK:
         state = _CHAT_PROGRESS.get(request_id)
         if state is not None:
             state["cancelled"] = True
             state["updated_at"] = datetime.now().isoformat()
-
 
 def _progress_is_cancelled(request_id: Optional[str]) -> bool:
     if not request_id:
@@ -1137,11 +1108,9 @@ def _progress_is_cancelled(request_id: Optional[str]) -> bool:
         state = _CHAT_PROGRESS.get(request_id)
         return bool(state and state.get("cancelled"))
 
-
 def _ensure_not_cancelled(request_id: Optional[str]) -> None:
     if _progress_is_cancelled(request_id):
         raise ChatCancelled("Anfrage wurde abgebrochen")
-
 
 def _progress_get(request_id: str, since: int = 0) -> Dict[str, Any]:
     with _CHAT_PROGRESS_LOCK:
@@ -1160,7 +1129,6 @@ def _progress_get(request_id: str, since: int = 0) -> Dict[str, Any]:
             "active_model": state.get("active_model"),
             "updated_at": state.get("updated_at"),
         }
-
 
 def _list_running_ollama_models() -> List[str]:
     """Best-effort parsing of `ollama ps` output."""
@@ -1187,7 +1155,6 @@ def _list_running_ollama_models() -> List[str]:
         return models
     except Exception:
         return []
-
 
 def _stop_ollama_model(model: str) -> Dict[str, Any]:
     if not model:
@@ -2280,8 +2247,6 @@ Ein neuer Chat wurde gestartet.
     ---
     Antworte jetzt auf meine Nachricht und führe bei Bedarf sofort die entsprechenden Shell-Befehle aus (angepasst an **{os_name}**)!"""
     
-    
-    
     # ===== HILFSMETHODEN =====
     def _get_recent_context(self, limit=3):
         """Gibt die letzten limit Konversationen zurück"""
@@ -2385,7 +2350,10 @@ Ein neuer Chat wurde gestartet.
         """Archiviert alten Memory-Inhalt"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            archive_name = f"MEMORY_ARCHIVE_{timestamp}.md"
+            # Erstelle memory_archive Verzeichnis falls nicht vorhanden
+            archive_dir = Path(__file__).parent.parent / "memory_archive"
+            archive_dir.mkdir(exist_ok=True)
+            archive_name = archive_dir / f"MEMORY_ARCHIVE_{timestamp}.md"
             # Aktuellen Memory-Inhalt aufteilen
             lines = self.memory_content.split('\n')
             # Erste Hälfte archivieren
@@ -2520,11 +2488,9 @@ def select_best_model(prompt: str, requested_model: str = None) -> str:
 # Globale Memory-Instanz
 chat_memory = ChatMemory()
 #######################################################################
-#######################################################################
 # =====================================================================
 # ============ Ollama Chat Endpoints ============
 # =====================================================================
-#######################################################################
 #######################################################################
 @router.get("/", response_class=HTMLResponse)
 async def get_dashboard():
@@ -2536,19 +2502,29 @@ async def get_dashboard():
         return "<h1 style='color:red'>Fehler: static/index.html nicht gefunden!</h1>"
 # In http_api.py - Erweiterter Chat-Endpoint
 @router.post("/chat")
-async def chat_with_ollama(request: ChatRequest, token: str = Header(None)):
-    """Verknüpft das Dashboard direkt mit dem Ollama Client inkl. Memory & Befehlen."""
+async def chat_with_gabi(request: ChatRequest, token: str = Header(None)):
+    """🧠 GABI nutzt ihr volles Gehirn mit beiden Hemisphären!"""
     if token != API_KEY_REQUIRED:
         raise HTTPException(status_code=403, detail="API-Key ungültig")
-    request_id = (request.request_id or "").strip() or f"chat-{uuid.uuid4().hex[:12]}"
+    
+    request_id = (request.request_id or "").strip() or f"gabi-{uuid.uuid4().hex[:12]}"
     _progress_init(request_id)
-    _progress_add(request_id, "Nachricht empfangen", "fa-inbox")
+    _progress_add(request_id, "🧠 GABI Gehirn aktiviert", "fa-brain")
 
     try:
         _ensure_not_cancelled(request_id)
+        
+        # ===== CORPUS CALLOSUM - DIE BRÜCKE ZWISCHEN DEN HEMISPHÄREN =====
+        from corpus_callosum import get_brain
+        brain = get_brain()
+        brain.initialize_hemispheres()
+        
+        _progress_add(request_id, "Corpus Callosum aktiv - Verbinde Hemisphären", "fa-link")
+        
         # ===== 1. PRÜFE OB ES EIN DIREKTER BEFEHL IST =====
         if request.message.startswith('/'):
-            logger.info(f"Direkter Befehl erkannt: {request.message}")
+            logger.info(f"⚡ Direkter Befehl erkannt: {request.message}")
+            _progress_add(request_id, f"Linke Hemisphäre: Verarbeite Befehl", "fa-terminal")
             cmd_result = await handle_command(request.message, token)
             if isinstance(cmd_result, dict):
                 steps = cmd_result.get("thinking_steps", [])
@@ -2572,12 +2548,15 @@ async def chat_with_ollama(request: ChatRequest, token: str = Header(None)):
                 if steps:
                     cmd_result["thinking_steps"] = steps
                 cmd_result["request_id"] = request_id
+                cmd_result["hemisphere"] = "left"  # Linke Hemisphäre war aktiv
             return cmd_result
         
-        # ===== 2. NACHRICHT IN EINZELNE ANFRAGEN AUFTEILEN =====
+        # ===== 2. GEDÄCHTNIS INTEGRIEREN (BEIDE HEMISPHÄREN NUTZEN MEMORY) =====
         user_message = request.message
-        logger.info(f"📨 Original: {user_message}")
-        _progress_add(request_id, "Nachricht analysieren", "fa-search")
+        logger.info(f"📨 GABI empfängt: {user_message}")
+        _progress_add(request_id, "Rechte Hemisphäre: Analysiere Nachricht", "fa-search")
+        
+        # Prüfe auf /merken Befehl (spezielle Memory-Funktion)
         remember_match = re.match(
             r"^\s*(?:merk(?:e)?\s+dir|merken)\s*(?::|-)?\s*(.+)\s*$",
             user_message,
@@ -2592,6 +2571,7 @@ async def chat_with_ollama(request: ChatRequest, token: str = Header(None)):
                     "reply": "❌ Bitte gib nach `/merken` oder `merk dir` auch den Inhalt an.",
                     "timestamp": datetime.now().isoformat(),
                     "request_id": request_id,
+                    "hemisphere": "memory",
                 }
             action = "gemerkt" if created else "bereits gemerkt"
             confirmed_at = datetime.fromisoformat(entry["timestamp"]).strftime("%H:%M:%S")
@@ -2605,357 +2585,406 @@ async def chat_with_ollama(request: ChatRequest, token: str = Header(None)):
                 "status": "success",
                 "reply": reply,
                 "timestamp": datetime.now().isoformat(),
-                "model_used": "gateway/memory",
+                "model_used": "gabi/memory",
                 "request_id": request_id,
+                "hemisphere": "both",  # Beide Hemisphären für Memory
             }
         
-        # Definiere Such-Trigger
+        # ===== 3. CORPUS CALLOSUM ROUTING - WELCHE HEMISPHÄRE IST ZUSTÄNDIG? =====
+        task = {
+            "content": user_message,
+            "type": "auto",
+            "request_id": request_id,
+            "context": chat_memory.conversation_history[-10:] if chat_memory.conversation_history else []
+        }
+        
+        # Lasse das Corpus Callosum entscheiden
+        routing_result = brain.route_task(task)
+        hemisphere = routing_result.get("hemisphere", "bridge")
+        detected_type = routing_result.get("detected_type", "chat")
+        
+        _progress_add(request_id, f"Corpus Callosum: Routing zu {hemisphere} Hemisphäre (Typ: {detected_type})", 
+                      "fa-code-branch" if hemisphere == "left" else "fa-paint-brush")
+        
+        # ===== 4. DEFINITION DER SUCH-TRIGGER (für rechte Hemisphäre) =====
         search_triggers = [
             "suche nach", "such nach", "finde heraus", "recherchiere",
             "google mal", "such mal", "was ist", "wer ist", "informationen über",
             "infos zu", "news zu", "artikel über", "erzähl mir von"
         ]
         
-        # Teile die Nachricht in Sätze (an . ! ? und Zeilenumbrüchen)
-        # Bessere Satzerkennung: Teile an . ! ? gefolgt von Leerzeichen oder Zeilenende
+        # ===== 5. SATZ-ERKENNUNG FÜR KOMPLEXE ANFRAGEN =====
         raw_sentences = re.split(r'(?<=[.!?])\s+|\n+', user_message)
         sentences = [s.strip() for s in raw_sentences if s.strip()]
         
-        logger.info(f"📨 Gefundene Sätze: {len(sentences)}")
-        for i, s in enumerate(sentences):
-            logger.info(f"  Satz {i+1}: {s[:50]}...")
+        logger.info(f"📨 GABI erkennt {len(sentences)} Satz/Sätze")
         
-        # Wenn nur ein Satz, behandle normal
-        if len(sentences) == 1:
-            sentence_lower = sentences[0].lower()
+        # ===== 6. VERARBEITUNG BASIEREND AUF HEMISPHÄRE =====
+        
+        # --- LINKE HEMISPHÄRE (analytisch, Code, Shell) ---
+        if hemisphere == "left":
+            _progress_add(request_id, f"🔵 Linke Hemisphäre aktiv - {detected_type}", "fa-microchip")
             
-            # Prüfe ob dieser eine Satz einen Trigger enthält
-            is_search = any(trigger in sentence_lower for trigger in search_triggers)
+            if detected_type == "shell":
+                # Shell-Befehl ausführen
+                cmd_result = await handle_command(f"/shell {user_message}", token)
+                return {
+                    "status": "success",
+                    "reply": cmd_result.get("reply", "Befehl ausgeführt"),
+                    "timestamp": datetime.now().isoformat(),
+                    "hemisphere": "left",
+                    "hemisphere_type": "analytical",
+                    "task_type": detected_type,
+                    "request_id": request_id,
+                }
             
-            if is_search:
-                thinking_steps: List[Dict[str, str]] = []
-                # Extrahiere Suchbegriff
-                search_term = _extract_search_term(sentences[0], search_triggers)
-                logger.info(f"🔍 Einzelne Suche: '{search_term}'")
-                _progress_add(request_id, f"Web-Suche erkannt: {search_term}", "fa-search")
+            elif detected_type == "code":
+                # Code-Generierung mit Code-Modell
+                messages = [
+                    {"role": "system", "content": "Du bist GABIs linke, analytische Hemisphäre. Du bist spezialisiert auf Code, Logik und präzise technische Antworten."},
+                    {"role": "user", "content": user_message}
+                ]
                 
-                safe_search_term = search_term.replace('"', "'")
-                cmd = f"/shell python tools/web_search.py \"{safe_search_term}\""
-                thinking_steps.append(
-                    {
+                # Verwende Code-spezifisches Modell
+                code_model = "codellama"  # oder deepseek-coder
+                try:
+                    response = await _ollama_chat_async(model=code_model, messages=messages)
+                    reply = _extract_ollama_text(response)
+                except:
+                    # Fallback auf Default-Modell
+                    response = await _ollama_chat_async(model=ollama_client.default_model, messages=messages)
+                    reply = _extract_ollama_text(response)
+                
+                chat_memory.add_to_memory(user_message, reply)
+                return {
+                    "status": "success",
+                    "reply": reply,
+                    "timestamp": datetime.now().isoformat(),
+                    "model_used": code_model,
+                    "hemisphere": "left",
+                    "hemisphere_type": "analytical",
+                    "task_type": detected_type,
+                    "request_id": request_id,
+                }
+            
+            elif detected_type == "analysis":
+                # System-Analyse mit linkem Gehirn
+                import psutil
+                import platform
+                
+                analysis = {
+                    "cpu": f"{psutil.cpu_percent()}%",
+                    "memory": f"{psutil.virtual_memory().percent}%",
+                    "disk": f"{psutil.disk_usage('/').percent}%",
+                    "os": platform.system(),
+                    "hostname": platform.node()
+                }
+                
+                reply = f"**System-Analyse:**\n"
+                reply += f"- CPU: {analysis['cpu']}\n"
+                reply += f"- RAM: {analysis['memory']}\n"
+                reply += f"- Festplatte: {analysis['disk']}\n"
+                reply += f"- OS: {analysis['os']}\n"
+                reply += f"- Host: {analysis['hostname']}"
+                
+                return {
+                    "status": "success",
+                    "reply": reply,
+                    "timestamp": datetime.now().isoformat(),
+                    "data": analysis,
+                    "hemisphere": "left",
+                    "hemisphere_type": "analytical",
+                    "task_type": detected_type,
+                    "request_id": request_id,
+                }
+        
+        # --- RECHTE HEMISPHÄRE (kreativ, Vision, Audio, Chat) ---
+        else:  # hemisphere == "right" or "bridge"
+            _progress_add(request_id, f"🟣 Rechte Hemisphäre aktiv - {detected_type}", "fa-paint-brush")
+            
+            # Wenn nur ein Satz, normale Verarbeitung
+            if len(sentences) == 1:
+                sentence_lower = sentences[0].lower()
+                
+                # Prüfe auf Web-Suche
+                is_search = any(trigger in sentence_lower for trigger in search_triggers)
+                
+                if is_search:
+                    # === WEB-SUCHE (rechte Hemisphäre + Werkzeug) ===
+                    thinking_steps: List[Dict[str, str]] = []
+                    search_term = _extract_search_term(sentences[0], search_triggers)
+                    logger.info(f"🔍 Rechte Hemisphäre erkennt Suche: '{search_term}'")
+                    _progress_add(request_id, f"Web-Suche: {search_term}", "fa-search")
+                    
+                    safe_search_term = search_term.replace('"', "'")
+                    cmd = f"/shell python tools/web_search.py \"{safe_search_term}\""
+                    thinking_steps.append({
                         "text": f"Tool-Aufruf: {cmd}",
                         "icon": "fa-terminal",
                         "time": datetime.now().isoformat(),
+                    })
+                    
+                    result = await handle_command(cmd, token)
+                    _ensure_not_cancelled(request_id)
+                    search_output = (result.get("reply", "") or "").strip() or "⚠️ Keine Suchergebnisse."
+                    
+                    # Wenn Zusammenfassung gewünscht
+                    if _wants_summary_after_search(sentences[0]):
+                        selected_model = await asyncio.to_thread(
+                            _auto_select_model, sentences[0], request.model, request_id
+                        )
+                        _progress_set_active_model(request_id, selected_model)
+                        
+                        summary_prompt = (
+                            "Fasse die folgenden Suchergebnisse strukturiert zusammen.\n\n"
+                            f"Nutzerfrage: {sentences[0]}\n\n"
+                            f"Suchergebnisse:\n{search_output[:18000]}"
+                        )
+                        messages = [
+                            {"role": "system", "content": chat_memory.get_system_prompt()},
+                            {"role": "user", "content": summary_prompt},
+                        ]
+                        response = await _ollama_chat_async(model=selected_model, messages=messages)
+                        reply = _extract_ollama_text(response) or "⚠️ Keine Zusammenfassung."
+                        chat_memory.add_to_memory(sentences[0], reply)
+                        
+                        return {
+                            "status": "success",
+                            "reply": reply,
+                            "timestamp": datetime.now().isoformat(),
+                            "model_used": selected_model,
+                            "tool_used": "web_search + summary",
+                            "thinking_steps": thinking_steps,
+                            "hemisphere": "right",
+                            "hemisphere_type": "creative",
+                            "request_id": request_id,
+                        }
+                    
+                    return {
+                        "status": "success",
+                        "reply": f"**Suchergebnisse für '{search_term}':**\n\n{search_output}",
+                        "timestamp": datetime.now().isoformat(),
+                        "tool_used": "web_search",
+                        "thinking_steps": thinking_steps,
+                        "hemisphere": "right",
+                        "hemisphere_type": "creative",
+                        "request_id": request_id,
                     }
-                )
-                _progress_add(request_id, f"Tool-Aufruf: {cmd}", "fa-terminal")
-                result = await handle_command(cmd, token)
-                _ensure_not_cancelled(request_id)
-                search_output = (result.get("reply", "") or "").strip()
-                if not search_output:
-                    search_output = "⚠️ web_search.py lieferte keine Ausgabe."
-                thinking_steps.append(
-                    {
-                        "text": "Web-Suche abgeschlossen",
-                        "icon": "fa-search",
-                        "time": datetime.now().isoformat(),
-                        "details": search_output[:1800],
-                    }
-                )
-
-                # Wenn explizit eine Zusammenfassung gewünscht ist: Suche + LLM-Weiterverarbeitung
-                if _wants_summary_after_search(sentences[0]):
+                
+                else:
+                    # === NORMALE KONVERSATION (rechte Hemisphäre) ===
+                    logger.info(f"💬 Rechte Hemisphäre: Chat")
+                    
+                    thinking_steps: List[Dict[str, str]] = []
+                    messages = [
+                        {"role": "system", "content": chat_memory.get_system_prompt()}
+                    ]
+                    
+                    if chat_memory.conversation_history:
+                        messages.extend(chat_memory.conversation_history[-10:])
+                    
+                    messages.append({"role": "user", "content": sentences[0]})
+                    
                     selected_model = await asyncio.to_thread(
-                        _auto_select_model,
-                        sentences[0],
-                        request.model,
-                        request_id,
+                        _auto_select_model, sentences[0], request.model, request_id
                     )
                     _progress_set_active_model(request_id, selected_model)
-                    _progress_add(request_id, f"Zusammenfassung läuft mit {selected_model}", "fa-brain")
-                    thinking_steps.append(
-                        {
-                            "text": f"Zusammenfassung mit Modell {selected_model}",
-                            "icon": "fa-brain",
-                            "time": datetime.now().isoformat(),
-                        }
+                    
+                    thinking_steps.append({
+                        "text": f"Modellwahl: {selected_model}",
+                        "icon": "fa-code-branch",
+                        "time": datetime.now().isoformat(),
+                    })
+                    
+                    # Self-QA für komplexe Fragen
+                    try:
+                        models_info = await _ollama_list_models_async()
+                        available = [m.get("name") for m in models_info.get("models", []) if m.get("name")]
+                    except:
+                        available = []
+                    
+                    precheck = await asyncio.to_thread(
+                        _run_self_qa_precheck, sentences[0], available, None, request_id
                     )
-                    summary_prompt = (
-                        "Fasse die folgenden Suchergebnisse strukturiert zusammen.\n"
-                        "Liefere: 1) Kernaussagen 2) Chancen/Risiken 3) kurzer Ausblick.\n"
-                        "Wichtig: Erfinde keine Tool-/Shell-/Slash-Befehle und schreibe keine '/shell ...' Zeilen.\n"
-                        "Nutze klare Bullet-Points, ohne Meta-Kommentare.\n\n"
-                        f"Nutzerfrage: {sentences[0]}\n\n"
-                        "Suchergebnisse:\n"
-                        f"{search_output[:18000]}"
-                    )
-                    messages = [
-                        {"role": "system", "content": chat_memory.get_system_prompt()},
-                        {"role": "user", "content": summary_prompt},
-                    ]
-                    response = await _ollama_chat_async(
-                        model=selected_model,
-                        messages=messages
-                    )
+                    if precheck.get("analysis_context"):
+                        messages.insert(len(messages) - 1, {"role": "system", "content": precheck["analysis_context"]})
+                    thinking_steps.extend(precheck.get("thinking_steps", []))
+                    
                     _ensure_not_cancelled(request_id)
-                    reply = _extract_ollama_text(response) or "⚠️ Keine Zusammenfassung erhalten."
+                    response = await _ollama_chat_async(model=selected_model, messages=messages)
+                    reply = _extract_ollama_text(response) or "⚠️ Keine Antwort."
+                    
                     chat_memory.add_to_memory(sentences[0], reply)
+                    
                     return {
                         "status": "success",
                         "reply": reply,
                         "timestamp": datetime.now().isoformat(),
                         "model_used": selected_model,
-                        "tool_used": f"web_search.py -> Zusammenfassung ({selected_model})",
                         "thinking_steps": thinking_steps,
+                        "hemisphere": "right",
+                        "hemisphere_type": "creative",
                         "request_id": request_id,
                     }
-                
-                return {
-                    "status": "success",
-                    "reply": f"**[GEDANKENGANG: Web-Suche für '{search_term}']**\n\n{search_output}",
-                    "timestamp": datetime.now().isoformat(),
-                    "tool_used": "web_search.py",
-                    "thinking_steps": thinking_steps,
-                    "request_id": request_id,
-                }
-            else:
-                # Normale Unterhaltung
-                logger.info(f"💬 Normale Unterhaltung: {sentences[0][:50]}...")
-                _progress_add(request_id, "Normale Unterhaltung erkannt", "fa-comments")
-
-                thinking_steps: List[Dict[str, str]] = []
-                messages = [
-                    {"role": "system", "content": chat_memory.get_system_prompt()}
-                ]
-                
-                if chat_memory.conversation_history:
-                    context_msgs = chat_memory.conversation_history[-10:]
-                    messages.extend(context_msgs)
-
-                messages.append({"role": "user", "content": sentences[0]})
-                selected_model = await asyncio.to_thread(
-                    _auto_select_model,
-                    sentences[0],
-                    request.model,
-                    request_id,
-                )
-                _progress_set_active_model(request_id, selected_model)
-
-                thinking_steps.append(
-                    {
-                        "text": f"Model-Routing: Antwort mit {selected_model}",
-                        "icon": "fa-code-branch",
-                        "time": datetime.now().isoformat(),
-                    }
-                )
-                try:
-                    models_info = await _ollama_list_models_async()
-                    available = [m.get("name") for m in models_info.get("models", []) if m.get("name")]
-                except Exception:
-                    available = []
-                precheck = await asyncio.to_thread(
-                    _run_self_qa_precheck,
-                    sentences[0],
-                    available,
-                    None,
-                    request_id,
-                )
-                if precheck.get("analysis_context"):
-                    # Insert before current user message so the model sees it as guidance.
-                    messages.insert(len(messages) - 1, {"role": "system", "content": precheck["analysis_context"]})
-                thinking_steps.extend(precheck.get("thinking_steps", []))
-                
-                _ensure_not_cancelled(request_id)
-                _progress_add(request_id, f"Finale Antwort läuft mit {selected_model}", "fa-brain")
-                response = await _ollama_chat_async(
-                    model=selected_model,
-                    messages=messages
-                )
-                _ensure_not_cancelled(request_id)
-                _progress_add(request_id, "Antwort empfangen", "fa-check-circle")
-                
-                reply = _extract_ollama_text(response)
-                if not (reply or "").strip():
-                    reply = "⚠️ Das Modell hat keine Antwort geliefert."
-                chat_memory.add_to_memory(sentences[0], reply)
-                
-                return {
-                    "status": "success", 
-                    "reply": reply,
-                    "timestamp": datetime.now().isoformat(),
-                    "model_used": selected_model,
-                    "thinking_steps": thinking_steps,
-                    "request_id": request_id,
-                }
-        
-        # ===== 3. MEHRERE SÄTZE - JEDEN EINZELN BEHANDELN =====
-        results = []
-        combined_thinking_steps: List[Dict[str, str]] = []
-        
-        for i, sentence in enumerate(sentences):
-            sentence_lower = sentence.lower()
-            logger.info(f"🔄 Verarbeite Satz {i+1}: {sentence[:50]}...")
             
-            # Prüfe ob dieser Satz einen Such-Trigger enthält
-            is_search = any(trigger in sentence_lower for trigger in search_triggers)
+            # === MEHRERE SÄTZE - SEQUENTIELLE VERARBEITUNG ===
+            results = []
+            combined_thinking_steps: List[Dict[str, str]] = []
             
-            if is_search:
-                # === WEB-SUCHE für diesen Satz ===
-                # Extrahiere Suchbegriff
-                search_term = _extract_search_term(sentence, search_triggers)
-                logger.info(f"  🔍 Satz {i+1} ist eine SUCHE: '{search_term}'")
+            for i, sentence in enumerate(sentences):
+                sentence_lower = sentence.lower()
+                is_search = any(trigger in sentence_lower for trigger in search_triggers)
                 
-                # Führe Suche aus
-                safe_search_term = search_term.replace('"', "'")
-                cmd = f"/shell python tools/web_search.py \"{safe_search_term}\""
-                _progress_add(request_id, f"Satz {i+1}: Web-Suche {search_term}", "fa-search")
-                combined_thinking_steps.append(
-                    {
-                        "text": f"Satz {i+1}: Tool-Aufruf {cmd}",
-                        "icon": "fa-terminal",
-                        "time": datetime.now().isoformat(),
-                    }
-                )
-                cmd_result = await handle_command(cmd, token)
-                _ensure_not_cancelled(request_id)
-                result_text = (cmd_result.get('reply', '') or '').strip() or '⚠️ web_search.py lieferte keine Ausgabe.'
-                combined_thinking_steps.append(
-                    {
-                        "text": f"Satz {i+1}: Web-Suche abgeschlossen",
+                if is_search:
+                    # Such-Anfrage
+                    search_term = _extract_search_term(sentence, search_triggers)
+                    safe_search_term = search_term.replace('"', "'")
+                    cmd = f"/shell python tools/web_search.py \"{safe_search_term}\""
+                    
+                    combined_thinking_steps.append({
+                        "text": f"Satz {i+1}: Suche '{search_term}'",
                         "icon": "fa-search",
                         "time": datetime.now().isoformat(),
-                        "details": result_text[:1800],
-                    }
-                )
-                
-                results.append({
-                    "type": "search",
-                    "original": sentence,
-                    "query": search_term,
-                    "result": result_text
-                })
-                
-            else:
-                # === NORMALE UNTERHALTUNG für diesen Satz ===
-                logger.info(f"  💬 Satz {i+1} ist NORMALE KONVERSATION")
-                
-                # Baue Konversations-Verlauf auf (inkl. vorheriger Ergebnisse)
-                messages = [
-                    {"role": "system", "content": chat_memory.get_system_prompt()}
-                ]
-                
-                # Füge vorherige Ergebnisse als Kontext hinzu
-                for prev_result in results:
-                    if prev_result["type"] == "search":
-                        messages.append({
-                            "role": "assistant", 
-                            "content": f"[Suchergebnis zu '{prev_result['query']}']\n{prev_result['result'][:8000]}"
-                        })
-                    else:
-                        messages.append({
-                            "role": "assistant",
-                            "content": prev_result["result"]
-                        })
-                
-                # Füge aktuellen Satz hinzu
-                messages.append({"role": "user", "content": sentence})
-                selected_model = await asyncio.to_thread(
-                    _auto_select_model,
-                    sentence,
-                    request.model,
-                    request_id,
-                )
-                _progress_set_active_model(request_id, selected_model)
-                combined_thinking_steps.append(
-                    {
-                        "text": f"Satz {i+1}: Model-Routing -> {selected_model}",
-                        "icon": "fa-code-branch",
+                    })
+                    
+                    cmd_result = await handle_command(cmd, token)
+                    result_text = (cmd_result.get('reply', '') or '').strip() or '⚠️ Keine Ergebnisse.'
+                    
+                    results.append({
+                        "type": "search",
+                        "original": sentence,
+                        "query": search_term,
+                        "result": result_text
+                    })
+                    
+                else:
+                    # Normale Chat-Anfrage
+                    messages = [{"role": "system", "content": chat_memory.get_system_prompt()}]
+                    
+                    # Vorherige Ergebnisse als Kontext
+                    for prev_result in results:
+                        if prev_result["type"] == "search":
+                            messages.append({
+                                "role": "assistant",
+                                "content": f"[Suche: {prev_result['query']}]\n{prev_result['result'][:8000]}"
+                            })
+                        else:
+                            messages.append({
+                                "role": "assistant",
+                                "content": prev_result["result"]
+                            })
+                    
+                    messages.append({"role": "user", "content": sentence})
+                    
+                    selected_model = await asyncio.to_thread(
+                        _auto_select_model, sentence, request.model, request_id
+                    )
+                    
+                    combined_thinking_steps.append({
+                        "text": f"Satz {i+1}: Chat mit {selected_model}",
+                        "icon": "fa-comment",
                         "time": datetime.now().isoformat(),
-                    }
-                )
-                try:
-                    models_info = await _ollama_list_models_async()
-                    available = [m.get("name") for m in models_info.get("models", []) if m.get("name")]
-                except Exception:
-                    available = []
-                precheck = await asyncio.to_thread(
-                    _run_self_qa_precheck,
-                    sentence,
-                    available,
-                    None,
-                    request_id,
-                )
-                if precheck.get("analysis_context"):
-                    messages.insert(len(messages) - 1, {"role": "system", "content": precheck["analysis_context"]})
-                combined_thinking_steps.extend(precheck.get("thinking_steps", []))
-                
-                # LLM Antwort
-                _ensure_not_cancelled(request_id)
-                _progress_add(request_id, f"Satz {i+1}: Antwort läuft mit {selected_model}", "fa-brain")
-                response = await _ollama_chat_async(
-                    model=selected_model,
-                    messages=messages
-                )
-                _ensure_not_cancelled(request_id)
-                
-                reply = _extract_ollama_text(response)
-                if not (reply or "").strip():
-                    reply = "⚠️ Das Modell hat keine Antwort geliefert."
-                
-                results.append({
-                    "type": "chat",
-                    "original": sentence,
-                    "result": reply
-                })
-                
-                # In Memory speichern
-                chat_memory.add_to_memory(sentence, reply)
-        
-        # ===== 4. ALLE ERGEBNISSE KOMBINIEREN =====
-        combined_reply = ""
-        for i, res in enumerate(results, 1):
-            if res["type"] == "search":
-                combined_reply += f"**🔍 Suche {i}:** {res['original']}\n\n{res['result']}\n\n---\n\n"
-            else:
-                combined_reply += f"**💬 Antwort {i}:**\n\n{res['result']}\n\n---\n\n"
-        
-        final_model_used = request.model
-        if not final_model_used:
-            final_model_used = await asyncio.to_thread(
-                _auto_select_model,
-                user_message,
-                None,
-                request_id,
-            )
-
-        return {
-            "status": "success",
-            "reply": combined_reply,
-            "timestamp": datetime.now().isoformat(),
-            "model_used": final_model_used,
-            "thinking_steps": combined_thinking_steps,
-            "request_id": request_id,
-        }
+                    })
+                    
+                    response = await _ollama_chat_async(model=selected_model, messages=messages)
+                    reply = _extract_ollama_text(response) or "⚠️ Keine Antwort."
+                    
+                    results.append({
+                        "type": "chat",
+                        "original": sentence,
+                        "result": reply
+                    })
+                    
+                    chat_memory.add_to_memory(sentence, reply)
+            
+            # Alle Ergebnisse kombinieren
+            combined_reply = ""
+            for i, res in enumerate(results, 1):
+                if res["type"] == "search":
+                    combined_reply += f"**🔍 Suche {i}:** {res['original']}\n\n{res['result']}\n\n---\n\n"
+                else:
+                    combined_reply += f"**💬 Antwort {i}:**\n\n{res['result']}\n\n---\n\n"
+            
+            return {
+                "status": "success",
+                "reply": combined_reply,
+                "timestamp": datetime.now().isoformat(),
+                "hemisphere": "right",
+                "hemisphere_type": "creative",
+                "thinking_steps": combined_thinking_steps,
+                "request_id": request_id,
+            }
+            
     except ChatCancelled:
-        _progress_add(request_id, "Anfrage wurde gestoppt", "fa-stop-circle")
+        _progress_add(request_id, "GABI angehalten", "fa-stop-circle")
         return {
             "status": "error",
             "message": "Anfrage gestoppt",
-            "reply": "⏹️ Anfrage gestoppt.",
+            "reply": "⏹️ GABI wurde gestoppt.",
             "request_id": request_id,
         }
     except Exception as e:
-        logger.error(f"Chat Fehler: {e}")
+        logger.error(f"GABI Fehler: {e}")
         _progress_add(request_id, f"Fehler: {e}", "fa-exclamation-triangle")
         return {
-            "status": "error", 
+            "status": "error",
             "message": str(e),
-            "reply": f" {str(e)}",
+            "reply": f"❌ {str(e)}",
             "request_id": request_id,
         }
     finally:
         _progress_mark_done(request_id)
 
+
+# ===== NEUER ENDPOINT: GEHIRN-STATUS =====
+@router.get("/brain/status")
+async def brain_status(_api_key: str = Depends(verify_api_key)):
+    """🧠 Zeigt den Status von GABIs Gehirnhälften"""
+    try:
+        from corpus_callosum import get_brain
+        brain = get_brain()
+        brain.initialize_hemispheres()
+        
+        status = brain.get_status()
+        
+        # Füge zusätzliche Infos hinzu
+        status["memory"] = {
+            "conversations": len(chat_memory.conversation_history) // 2,
+            "notes": len(chat_memory.user_notes),
+            "last_activity": chat_memory.last_activity.isoformat() if chat_memory.last_activity else None
+        }
+        
+        return {
+            "status": "success",
+            "brain": status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Brain-Status Fehler: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===== NEUER ENDPOINT: HEMISPHÄREN WECHSELN =====
+@router.post("/brain/hemisphere")
+async def switch_hemisphere(
+    payload: dict,
+    _api_key: str = Depends(verify_api_key)
+):
+    """🔄 Wechselt die aktive Hemisphäre für Tests"""
+    hemisphere = payload.get("hemisphere", "auto")
+    
+    if hemisphere not in ["left", "right", "auto", "bridge"]:
+        raise HTTPException(status_code=400, detail="Ungültige Hemisphäre. Erlaubt: left, right, auto, bridge")
+    
+    # Hier könntest du eine globale Einstellung speichern
+    # Für jetzt nur Bestätigung
+    
+    return {
+        "status": "success",
+        "message": f"Hemisphäre auf '{hemisphere}' gesetzt",
+        "active": hemisphere,
+        "timestamp": datetime.now().isoformat()
+    }
 
 @router.get("/api/chat/progress/{request_id}")
 async def get_chat_progress(request_id: str, since: int = 0, token: str = Header(None)):
@@ -2963,7 +2992,6 @@ async def get_chat_progress(request_id: str, since: int = 0, token: str = Header
     if token != API_KEY_REQUIRED:
         raise HTTPException(status_code=403, detail="API-Key ungültig")
     return _progress_get(request_id, since=since)
-
 
 @router.post("/api/chat/stop")
 async def stop_chat(payload: dict, token: str = Header(None)):
@@ -3008,7 +3036,6 @@ async def stop_chat(payload: dict, token: str = Header(None)):
         "stopped_models": stopped_models,
         "models_attempted": list(seen),
     }
-
 
 async def handle_command(message: str, token: str):
     """Behandelt Befehle wie /shell, /memory, /soul, /new, /archives, etc."""
@@ -3133,41 +3160,6 @@ async def handle_command(message: str, token: str):
                     "reply": f"❌ Fehler: {result.get('stderr', 'Unbekannter Fehler')}",
                     "tool_used": "shell",
                     "command_executed": result.get("command_executed"),
-                }
-                
-        except subprocess.TimeoutExpired:
-            return {
-                "status": "success",
-                "reply": "❌ Timeout: Der Befehl wurde nach 30 Sekunden abgebrochen."
-            }
-        except Exception as e:
-            logger.error(f"Shell-Befehl Fehler: {e}")
-            return {
-                "status": "success",
-                "reply": f"❌ **Fehler beim Ausführen:**\n```\n{str(e)}\n```"
-            }
-            
-            # Normale Ausführung ohne Pipe
-            shell_request = ShellRequest(command=args[0], 
-                                       args=args[1:] if len(args) > 1 else [])
-            result = await execute_command(shell_request, token)
-            
-            if result.get("status") == "success":
-                output = result.get('stdout', '')
-                if output:
-                    return {
-                        "status": "success",
-                        "reply": f"```\n{output[:4000]}\n```"
-                    }
-                else:
-                    return {
-                        "status": "success",
-                        "reply": f"✅ Befehl ausgeführt (keine Ausgabe)"
-                    }
-            else:
-                return {
-                    "status": "success",
-                    "reply": f"❌ Fehler: {result.get('stderr', 'Unbekannter Fehler')}"
                 }
                 
         except subprocess.TimeoutExpired:
@@ -3927,9 +3919,189 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
     elif command == "status":
         status = chat_memory.heartbeat_content
         return {
-            "status": "success", 
+            "status": "success",
             "reply": f"📊 **System-Status:**\n```\n{status}\n```"
         }
+
+    # ===== WEBCAM =====
+    elif command == "webcam":
+        try:
+            vision = get_gabi_vision()
+            if not vision:
+                return {"status": "error", "reply": "❌ Vision-Modul nicht verfügbar"}
+
+            if not args or args[0] in ["capture", "photo"]:
+                # Webcam-Foto aufnehmen
+                result = vision.capture_webcam()
+                if result.get("success"):
+                    b64 = result.get("base64", "")
+                    return {
+                        "status": "success",
+                        "reply": f"📷 Webcam-Foto aufgenommen!\nPfad: `{result['path']}`\n\n[Bild anzeigen]({result['path']})",
+                        "image_path": result["path"],
+                        "base64": b64
+                    }
+                else:
+                    return {"status": "error", "reply": f"❌ Webcam-Fehler: {result.get('error', 'Unbekannt')}"}
+
+            elif args[0] == "status":
+                # Status anzeigen
+                status = vision.get_motion_status()
+                is_active = vision._webcam_active if hasattr(vision, '_webcam_active') else False
+                last_objects = vision._last_yolo_objects if hasattr(vision, '_last_yolo_objects') else []
+
+                msg = "🔍 **Webcam-Status:**\n\n"
+                msg += f"• Stream aktiv: {'✅ Ja' if is_active else '❌ Nein'}\n"
+
+                if last_objects:
+                    obj_list = ", ".join([f"{o['class']}" for o in last_objects[:5]])
+                    msg += f"• Letzte Erkennung: {obj_list}\n"
+                else:
+                    msg += "• Letzte Erkennung: Keine\n"
+
+                msg += "\n**Befehle:**\n"
+                msg += "• `/webcam` - Foto aufnehmen\n"
+                msg += "• `/webcam detect` - Einmal erkennen\n"
+                msg += "• `/webcam detect stream` - Stream starten\n"
+                msg += "• `/webcam detect stop` - Stream stoppen\n"
+
+                return {"status": "success", "reply": msg}
+
+            elif args[0] == "detect":
+                # Prüfe auf stream-modus
+                if len(args) > 1 and args[1] in ["stream", "watch", "kontinuierlich", "continuous"]:
+                    # Kontinuierliche YOLO-Erkennung starten
+                    result = vision.start_yolo_stream(interval=2.0)
+                    if result.get("success"):
+                        return {"status": "success", "reply": "🔍 **YOLO-Stream gestartet!**\n\nKontinuierliche Objekterkennung läuft im Hintergrund.\nErkennungen werden im Log ausgegeben.\n\nStoppen mit: `/webcam detect stop`"}
+                    else:
+                        return {"status": "error", "reply": f"❌ Fehler: {result.get('error')}"}
+
+                elif len(args) > 1 and args[1] in ["stop", "stopp"]:
+                    # Stoppe Stream
+                    vision.stop_yolo_stream()
+                    return {"status": "success", "reply": "⏹️ YOLO-Stream gestoppt."}
+
+                # Einzelne Erkennung
+                result = vision.capture_webcam()
+                if not result.get("success"):
+                    return {"status": "error", "reply": f"❌ Webcam-Fehler: {result.get('error')}"}
+
+                detect_result = vision.detect_objects(result["path"])
+                if detect_result.get("success"):
+                    objects = detect_result.get("objects", [])
+                    if objects:
+                        obj_list = ", ".join([f"{o['class']} ({o['confidence']:.0%})" for o in objects[:10]])
+                        return {"status": "success", "reply": f"🔍 **Erkannte Objekte:**\n{obj_list}"}
+                    return {"status": "success", "reply": "🔍 Keine Objekte erkannt."}
+                else:
+                    return {"status": "error", "reply": f"❌ YOLO-Fehler: {detect_result.get('error')}"}
+
+            elif args[0] in ["stream", "watch", "kontinuierlich", "continuous"]:
+                # Legacy: Kontinuierliche Erkennung (alternative zum detect stream)
+                result = vision.start_yolo_stream(interval=2.0)
+                if result.get("success"):
+                    return {"status": "success", "reply": "🔍 **YOLO-Stream gestartet!**\n\nStoppen mit: `/webcam detect stop`"}
+                    return {
+                        "status": "error",
+                        "reply": f"❌ Fehler: {result.get('error')}"
+                    }
+
+            elif args[0] in ["stop", "stopp"]:
+                vision.stop_yolo_stream()
+                vision.stop_motion_detection()
+                return {"status": "success", "reply": "⏹️ Alle Streams gestoppt."}
+
+            else:
+                return {"status": "error", "reply": "❌ Nutze `/webcam`, `/webcam capture`, `/webcam detect`, `/webcam stream` oder `/webcam stop`"}
+
+        except Exception as e:
+            return {"status": "error", "reply": f"❌ Webcam-Fehler: {e}"}
+
+    # ===== VISION (BILD ANALYSIEREN) =====
+    elif command == "vision":
+        try:
+            vision = get_gabi_vision()
+            if not vision:
+                return {"status": "error", "reply": "❌ Vision-Modul nicht verfügbar"}
+
+            if not args:
+                return {"status": "error", "reply": "❌ Nutze `/vision <pfad>` z.B. `/vision screenshots/webcam/webcam_20260218_190451.png`"}
+
+            # Pfad aus Argumenten zusammensetzen
+            image_path = " ".join(args)
+
+            # Handle @ prefix falls vorhanden
+            if image_path.startswith("@"):
+                image_path = image_path[1:]
+
+            # Relativen Pfad in absoluten umwandeln
+            if not os.path.isabs(image_path):
+                base_dir = Path(__file__).parent.parent
+                image_path = str(base_dir / image_path)
+
+            if not os.path.exists(image_path):
+                return {"status": "error", "reply": f"❌ Datei nicht gefunden: {image_path}"}
+
+            # Bild analysieren (async Funktion)
+            result = await vision.analyze_screenshot_with_ai(image_path, prompt="Beschreibe was du auf diesem Bild siehst.")
+
+            if result.get("success"):
+                analysis = result.get("analysis", "Keine Analyse erhalten")
+                return {
+                    "status": "success",
+                    "reply": f"🔍 **Bildanalyse:**\n{analysis}",
+                    "image_path": result.get("path")
+                }
+            else:
+                return {"status": "error", "reply": f"❌ Analyse-Fehler: {result.get('error', 'Unbekannt')}"}
+
+        except Exception as e:
+            return {"status": "error", "reply": f"❌ Vision-Fehler: {e}"}
+
+    # ===== WHISPER =====
+    elif command == "whisper":
+        import subprocess
+        import requests
+
+        try:
+            if not args:
+                return {"status": "error", "reply": "❌ Nutze `/whisper status` oder `/whisper listen`"}
+
+            sub = args[0].lower()
+
+            if sub == "status":
+                # Whisper-Server prüfen
+                try:
+                    r = requests.get("http://127.0.0.1:9090/health", timeout=2)
+                    if r.status_code == 200:
+                        return {"status": "success", "reply": "🎤 Whisper-Server: ✅ Läuft auf Port 9090"}
+                    return {"status": "error", "reply": "❌ Whisper-Server antwortet nicht korrekt"}
+                except:
+                    return {"status": "error", "reply": "❌ Whisper-Server nicht erreichbar auf Port 9090\n\nStarte mit:\n`server.exe -m M:\\whisper\\whisper.cpp\\models\\ggml-large-v3.bin --port 9090 --host 127.0.0.1 -l de`"}
+
+            elif sub == "listen":
+                # Audio aufnehmen - nutze Frontend MediaRecorder
+                return {
+                    "status": "success",
+                    "reply": """🎤 **Audio aufnehmen:**
+
+Klicke auf den **Whisper-Button** im Web-Interface (unten links im Chat)!
+
+Das nutzt den Browser-Mechanismus für Audio-Aufnahme:
+1. Klick auf 🎤 Whisper Button
+2. Klick nochmal zum Stoppen
+3. Audio wird automatisch an Whisper gesendet
+
+**Oder:** Nimm extern auf und lade die Datei im Chat hoch."""
+                }
+
+            else:
+                return {"status": "error", "reply": "❌ Nutze `/whisper status` oder `/whisper listen`"}
+
+        except Exception as e:
+            return {"status": "error", "reply": f"❌ Whisper-Fehler: {e}"}
+
     # ===== LERNSTATUS ANZEIGEN =====
     elif command == "learn":
         stats = f"""
@@ -3942,7 +4114,6 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
 💡 **Persönliche Infos:** {len(chat_memory.important_info)} gespeichert
 """
         return {"status": "success", "reply": stats}
-
 
     # ===== HILFE =====
     elif command == "help":
@@ -3994,6 +4165,28 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
     `/soul` - Persönlichkeit anzeigen
     `/generate-soul` - Soul generieren/aktualisieren
     `/learn` - Zeige was ich über dich gelernt habe
+
+    **📷 WEBCAM & VISION:**
+    `/webcam` - Webcam-Foto aufnehmen
+    `/webcam detect` - Einmalige Objekterkennung
+    `/webcam detect stream` - Kontinuierliche YOLO-Erkennung
+    `/webcam detect stop` - Stream stoppen
+    `/vision <pfad>` - Bild analysieren
+
+    **🎤 WHISPER (Spracherkennung):**
+    `/whisper status` - Whisper-Server Status
+    `/whisper listen` - Audio aufnehmen und transkribieren
+
+    **📷 WEBCAM & VISION:**
+    `/webcam` - Webcam-Foto aufnehmen
+    `/webcam detect` - Einmalige Objekterkennung
+    `/webcam detect stream` - Kontinuierliche YOLO-Erkennung
+    `/webcam detect stop` - Stream stoppen
+    `/vision <pfad>` - Bild analysieren
+
+    **🎤 WHISPER (Spracherkennung):**
+    `/whisper status` - Whisper-Server Status
+    `/whisper listen` - Audio aufnehmen und transkribieren
 
     **📊 SYSTEM:**
     `/status` - System-Status anzeigen
@@ -4099,6 +4292,62 @@ async def get_memory(_api_key: str = Depends(verify_api_key)):
         "conversation_count": len(chat_memory.conversation_history) // 2,
         "last_updated": datetime.now().isoformat(),
     }
+
+# ============ Vision/YOLO Stream Endpoint ============
+@router.get("/api/vision/stream-status")
+async def get_vision_stream_status(_api_key: str = Depends(verify_api_key)):
+    """Gibt den Status des YOLO-Streams zurück"""
+    vision = get_gabi_vision()
+    if not vision:
+        return {"active": False, "objects": [], "error": "Vision nicht verfügbar"}
+
+    return {
+        "active": vision._webcam_active if hasattr(vision, '_webcam_active') else False,
+        "objects": vision._last_yolo_objects if hasattr(vision, '_last_yolo_objects') else [],
+        "timestamp": datetime.now().isoformat()
+    }
+
+@router.post("/api/vision/stream-start")
+async def start_vision_stream(
+    interval: float = 2.0,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Startet den YOLO-Stream"""
+    vision = get_gabi_vision()
+    if not vision:
+        return {"success": False, "error": "Vision nicht verfügbar"}
+
+    result = vision.start_yolo_stream(interval=interval)
+    return result
+
+@router.post("/api/vision/stream-stop")
+async def stop_vision_stream(_api_key: str = Depends(verify_api_key)):
+    """Stoppt den YOLO-Stream"""
+    vision = get_gabi_vision()
+    if not vision:
+        return {"success": False, "error": "Vision nicht verfügbar"}
+
+    return vision.stop_yolo_stream()
+
+# ============ Vision Stream Endpoint ============
+@router.get("/api/vision/stream")
+async def get_vision_stream(_api_key: str = Depends(verify_api_key)):
+    """Gibt den aktuellen YOLO-Stream Status und letzte Erkennungen zurück"""
+    try:
+        vision = get_gabi_vision()
+        if not vision:
+            return {"active": False, "objects": [], "error": "Vision nicht verfügbar"}
+
+        is_active = getattr(vision, '_webcam_active', False)
+        last_objects = getattr(vision, '_last_yolo_objects', [])
+
+        return {
+            "active": is_active,
+            "objects": last_objects,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {"active": False, "objects": [], "error": str(e)}
 # Optional: Methode zum manuellen Archivieren
 @router.post("/api/memory/archive")
 async def archive_memory(_api_key: str = Depends(verify_api_key)):
@@ -4114,7 +4363,10 @@ async def archive_memory(_api_key: str = Depends(verify_api_key)):
             }
         else:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            archive_name = f"MEMORY_ARCHIVE_{timestamp}.md"
+            # Erstelle memory_archive Verzeichnis falls nicht vorhanden
+            archive_dir = Path(__file__).parent.parent / "memory_archive"
+            archive_dir.mkdir(exist_ok=True)
+            archive_name = archive_dir / f"MEMORY_ARCHIVE_{timestamp}.md"
             with open(MEMORY_FILE, "r", encoding="utf-8") as f:
                 content = f.read()
             with open(archive_name, "w", encoding="utf-8") as f:
@@ -4418,11 +4670,53 @@ async def transcribe_audio_sync(
         # Datei-Infos
         filename = getattr(file, 'filename', 'audio.wav')
         logger.info(f"🎤 Empfange Datei: {filename}")
-        
-        # Lese Datei direkt in Memory (kein temp file nötig für diesen Test)
+
+        # Lese Datei direkt in Memory
         content = await file.read()
         logger.info(f"📦 Dateigröße: {len(content)} bytes")
-        
+
+        # Konvertiere webm zu wav falls nötig
+        import io
+        import subprocess
+
+        input_ext = filename.split('.')[-1].lower() if '.' in filename else 'webm'
+
+        if input_ext in ['webm', 'mp4', 'm4a', 'ogg'] and len(content) > 0:
+            # Konvertiere zu wav mit ffmpeg
+            try:
+                # Erst einen temp input
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{input_ext}') as tmp_in:
+                    tmp_in.write(content)
+                    tmp_in_path = tmp_in.name
+
+                tmp_out = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+                tmp_out_path = tmp_out.name
+                tmp_out.close()
+
+                # Konvertiere
+                result = subprocess.run([
+                    'ffmpeg', '-y', '-i', tmp_in_path,
+                    '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le',
+                    tmp_out_path
+                ], capture_output=True, timeout=30)
+
+                os.unlink(tmp_in_path)
+
+                if result.returncode == 0 and os.path.getsize(tmp_out_path) > 1000:
+                    with open(tmp_out_path, 'rb') as f:
+                        content = f.read()
+                    filename = 'audio.wav'
+                    os.unlink(tmp_out_path)
+                    logger.info(f"🔄 Konvertiert zu wav: {len(content)} bytes")
+                else:
+                    logger.warning(f"ffmpeg Konvertierung fehlgeschlagen: {result.stderr.decode()}")
+                    if os.path.exists(tmp_out_path):
+                        os.unlink(tmp_out_path)
+
+            except Exception as e:
+                logger.error(f"Konvertierungsfehler: {e}")
+
         # Sende DIREKT an Whisper-Server
         import requests
         
@@ -4682,7 +4976,6 @@ async def telegram_broadcast(
     except Exception as e:
         logger.error(f"Telegram broadcast error: {e}")
         return {"success": False, "error": str(e)}
-
 
 # ============ Health Check ============
 @router.get("/health")
@@ -5238,7 +5531,6 @@ async def get_file(filename: str, _api_key: str = Depends(verify_api_key)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/api/files/list")
 async def list_workspace_files(
     query: str = "",
@@ -5264,7 +5556,6 @@ async def list_workspace_files(
         return {"files": files, "count": len(files)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/api/files/read")
 async def read_workspace_file(
@@ -5292,7 +5583,6 @@ async def read_workspace_file(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/api/chat/image/analyze")
 async def analyze_image_with_vlm(
@@ -5495,7 +5785,6 @@ async def list_calendar_events(
         logger.error(f"Calendar list error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/api/chat")
 async def chat_endpoint(data: dict):
     prompt = data.get("message", "")
@@ -5641,7 +5930,6 @@ async def get_current_model(_api_key: str = Depends(verify_api_key)):
         "current_model": ollama_client.default_model
     }
 
-
 # === GABI Autonomes Agenten-Framework ===
 
 @router.post("/api/daemon/task")
@@ -5660,7 +5948,6 @@ async def run_daemon_task(
         "result": result
     }
 
-
 @router.get("/api/daemon/status")
 async def get_daemon_status(_api_key: str = Depends(verify_api_key)):
     """Gibt den Status des Daemons zurück."""
@@ -5672,7 +5959,6 @@ async def get_daemon_status(_api_key: str = Depends(verify_api_key)):
         "running": daemon.running,
         "interval": daemon.interval
     }
-
 
 @router.post("/api/skill/create")
 async def create_skill(
@@ -5688,7 +5974,6 @@ async def create_skill(
         "result": result
     }
 
-
 @router.get("/api/memory/autolearn")
 async def get_autolearn_memory(_api_key: str = Depends(verify_api_key)):
     """Gibt das AutoLearn Memory zurück."""
@@ -5700,7 +5985,6 @@ async def get_autolearn_memory(_api_key: str = Depends(verify_api_key)):
         "skills": memory.get_all_skills(),
         "active_skills": memory.get_active_skills()
     }
-
 
 @router.get("/api/memory/has-skill/{skill_identifier}")
 async def check_skill(
@@ -5715,7 +5999,6 @@ async def check_skill(
         "has_skill": has_skill(skill_identifier)
     }
 
-
 @router.post("/api/security/validate")
 async def validate_code(
     code: str,
@@ -5729,7 +6012,6 @@ async def validate_code(
         "status": "success",
         "result": result
     }
-
 
 # === DAEMON & AUTONOMOUS AGENT API ===
 
@@ -5753,7 +6035,6 @@ async def create_task(
         logger.error(f"Fehler bei Task-Erstellung: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/api/daemon/status")
 async def get_daemon_status(_api_key: str = Depends(verify_api_key)):
     """Gibt den Status des Daemons zurück."""
@@ -5772,7 +6053,6 @@ async def get_daemon_status(_api_key: str = Depends(verify_api_key)):
         logger.error(f"Fehler beim Abrufen des Daemon-Status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/api/daemon/start")
 async def start_daemon(_api_key: str = Depends(verify_api_key)):
     """Startet den Daemon."""
@@ -5789,7 +6069,6 @@ async def start_daemon(_api_key: str = Depends(verify_api_key)):
         logger.error(f"Fehler beim Starten des Daemons: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/api/daemon/stop")
 async def stop_daemon(_api_key: str = Depends(verify_api_key)):
     """Stoppt den Daemon."""
@@ -5805,7 +6084,6 @@ async def stop_daemon(_api_key: str = Depends(verify_api_key)):
     except Exception as e:
         logger.error(f"Fehler beim Stoppen des Daemons: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/api/autolearn/skills")
 async def get_autolearn_skills(_api_key: str = Depends(verify_api_key)):
@@ -5824,7 +6102,6 @@ async def get_autolearn_skills(_api_key: str = Depends(verify_api_key)):
     except Exception as e:
         logger.error(f"Fehler beim Abrufen der Skills: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/api/autolearn/skill/{skill_name}")
 async def get_skill(
@@ -5851,7 +6128,6 @@ async def get_skill(
         logger.error(f"Fehler beim Abrufen des Skills: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/api/autolearn/check")
 async def check_skill(
     skill_identifier: str,
@@ -5871,7 +6147,6 @@ async def check_skill(
     except Exception as e:
         logger.error(f"Fehler beim Prüfen des Skills: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ============ GUI Controller Endpoints ============
 
@@ -6030,7 +6305,6 @@ async def gui_click_icon(
     except Exception as e:
         logger.error(f"GUI click icon error: {e}")
         return {"success": False, "error": str(e)}
-
 
 def _log_gui_action(action: str, target: str, result: dict):
     """Dokumentiert GUI-Aktionen in MEMORY.md."""

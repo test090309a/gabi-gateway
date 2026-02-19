@@ -1,4 +1,4 @@
-"""FastAPI HTTP endpoints."""
+"""FastAPI HTTP endpoints."""  # FIX: Model switching fix
 import re
 import logging
 import platform
@@ -15,6 +15,8 @@ import threading
 import uuid
 import socket
 import time
+import importlib
+import inspect
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional, Dict
@@ -31,6 +33,168 @@ from integrations.gmail_client import get_gmail_client
 from integrations.google_calendar_client import get_calendar_client
 from integrations.whisper_client import get_whisper_client
 from integrations.telegram_bot import get_telegram_bot
+from integrations.gui_controller import get_gui_controller
+
+# === GABI VISION ===
+try:
+    from integrations.gabi_vision import get_gabi_vision
+except ImportError:
+    get_gabi_vision = None
+
+# === DYNAMIC HOT-RELOAD SYSTEM ===
+# Registry für dynamisch geladene Integrationen
+_dynamic_integrations: Dict[str, Any] = {}
+_integrations_dir = Path(__file__).parent.parent / "integrations"
+_last_scan_times: Dict[str, float] = {}
+FILE_WATCH_INTERVAL = 5  # Sekunden zwischen Datei-Scans
+
+# Logger für Hot-Reload (wird nach dem Import initialisiert)
+_hotreload_logger = None
+
+def _get_hotreload_logger():
+    """Lazy Logger für Hot-Reload."""
+    global _hotreload_logger
+    if _hotreload_logger is None:
+        _hotreload_logger = logging.getLogger("GATEWAY.hotreload")
+    return _hotreload_logger
+
+# === HOT-RELOAD FUNKTIONEN ===
+def _scan_integrations_dir() -> List[Dict[str, Any]]:
+    """Scannt das integrations/ Verzeichnis nach neuen .py Dateien."""
+    if not _integrations_dir.exists():
+        return []
+
+    integrations = []
+    for py_file in _integrations_dir.glob("*.py"):
+        if py_file.name.startswith("_") or py_file.name == "__init__.py":
+            continue
+
+        try:
+            stat = py_file.stat()
+            mtime = stat.st_mtime
+            size = stat.st_size
+
+            integrations.append({
+                "name": py_file.stem,
+                "path": str(py_file),
+                "mtime": mtime,
+                "size": size,
+                "exists": True
+            })
+        except Exception as e:
+            _get_hotreload_logger().warning(f"Fehler beim Scannen von {py_file}: {e}")
+
+    return integrations
+
+def _load_integration_module(module_name: str) -> Optional[Any]:
+    """Lädt ein Integration-Modul dynamisch mit importlib."""
+    try:
+        # Bestehendes Modul aus Cache entfernen
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+
+        #try:
+        #    del sys.modules[f"integrations.{module_name}"]
+        #except KeyError:
+        #    pass
+
+        # Neues Modul importieren
+        module = importlib.import_module(f"integrations.{module_name}")
+        importlib.reload(module)
+
+        _get_hotreload_logger().info(f"Hot-Reload: Modul '{module_name}' geladen")
+        return module
+
+    except Exception as e:
+        _get_hotreload_logger().error(f"Hot-Reload Fehler für '{module_name}': {e}")
+        return None
+
+def _register_integration_routes(module_name: str, module: Any) -> bool:
+    """Registriert automatisch neue FastAPI-Routen aus einem Modul."""
+    try:
+        # Suche nach FastAPI-Routern im Modul
+        router = getattr(module, "router", None)
+        if router:
+            # Versuche app aus dem aktuellen Kontext zu holen
+            try:
+                from main import app as main_app
+                if router not in [r for r in main_app.routes if hasattr(r, 'path')]:
+                    main_app.include_router(router)
+                    _get_hotreload_logger().info(f"Neue Route registriert: /api/{module_name}")
+                    return True
+            except ImportError:
+                _get_hotreload_logger().warning("main_app konnte nicht importiert werden")
+                return False
+
+        # Suche nach eigenständigen Endpoint-Funktionen
+        for name, obj in inspect.getmembers(module, inspect.isfunction):
+            if name.startswith("router_") or name.endswith("_endpoint"):
+                _get_hotreload_logger().info(f"Funktion gefunden: {name}")
+                return True
+
+        return False
+
+    except Exception as e:
+        _get_hotreload_logger().error(f"Fehler beim Registrieren von Routen für '{module_name}': {e}")
+        return False
+
+def check_and_reload_integrations() -> Dict[str, Any]:
+    """Prüft auf neue/geänderte Integrationen und lädt sie dynamisch."""
+    current_integrations = _scan_integrations_dir()
+    reloads = []
+
+    for integration in current_integrations:
+        name = integration["name"]
+        path = integration["path"]
+        mtime = integration["mtime"]
+
+        # Neue oder geänderte Datei?
+        last_time = _last_scan_times.get(name, 0)
+        if mtime > last_time:
+            logger.info(f"Hot-Reload: Neue/geänderte Integration erkannt: {name}")
+
+            # Modul laden
+            module = _load_integration_module(name)
+            if module:
+                # Routen registrieren
+                _register_integration_routes(name, module)
+
+                # In Registry speichern
+                _dynamic_integrations[name] = {
+                    "module": module,
+                    "path": path,
+                    "loaded_at": time.time()
+                }
+
+                reloads.append(name)
+
+            _last_scan_times[name] = mtime
+
+    return {"reloaded": reloads, "total": len(_dynamic_integrations)}
+
+# Background Task für automatische Integration-Überwachung
+def _start_integration_watcher():
+    """Startet den Hintergrund-Thread für Integration-Überwachung."""
+    def watcher():
+        while True:
+            try:
+                check_and_reload_integrations()
+            except Exception as e:
+                logger.error(f"Integration-Watcher Fehler: {e}")
+            time.sleep(FILE_WATCH_INTERVAL)
+
+    watcher_thread = threading.Thread(target=watcher, daemon=True, name="Integration-Watcher")
+    watcher_thread.start()
+    logger.info("Integration-Watcher gestartet")
+
+# Starte Watcher beim Import - verzögert bis main.app existiert
+# (Wird in main.py beim App-Start aufgerufen)
+def _init_integration_watcher():
+    """Initialisiert den Integration-Watcher (muss nach App-Start aufgerufen werden)."""
+    try:
+        _start_integration_watcher()
+    except Exception as e:
+        _get_hotreload_logger().warning(f"Integration-Watcher konnte nicht gestartet werden: {e}")
 # --- VARIABLEN & KONFIGURATION ---
 # Reduziere httpx/uvicorn Logging für sauberere Ausgabe
 logging.getLogger('httpx').setLevel(logging.WARNING)
@@ -47,10 +211,8 @@ _DISCOVERY_CACHE: Dict[str, Any] = {"ts": None, "data": {}}
 _CHAT_PROGRESS: Dict[str, Dict[str, Any]] = {}
 _CHAT_PROGRESS_LOCK = threading.Lock()
 
-
 class ChatCancelled(Exception):
     """Raised when a chat request has been cancelled by the user."""
-
 
 def _log_whisper_state(available: bool, models: List[str]) -> None:
     """Log Whisper status only on state changes to avoid polling noise."""
@@ -68,7 +230,6 @@ def _log_whisper_state(available: bool, models: List[str]) -> None:
             logger.warning("Whisper ist ausgefallen")
         _LAST_WHISPER_STATE = available
 
-
 def _extract_model_score(name: str) -> float:
     """Heuristic score for model size from its name (supports 1.2b, 24b, 70b)."""
     lowered = (name or "").lower()
@@ -79,7 +240,6 @@ def _extract_model_score(name: str) -> float:
         except ValueError:
             return 0.0
     return 0.0
-
 
 def _pick_best_model(
     available: List[str],
@@ -107,7 +267,6 @@ def _pick_best_model(
 
     return sorted(pool, key=_extract_model_score, reverse=True)[0] if pool else None
 
-
 def _as_model_pref_list(raw: Any) -> List[str]:
     """Normalize model preference setting to a list of non-empty strings."""
     if raw is None:
@@ -120,7 +279,6 @@ def _as_model_pref_list(raw: Any) -> List[str]:
     if "," in text:
         return [part.strip() for part in text.split(",") if part.strip()]
     return [text]
-
 
 def _pick_preferred_available(available: List[str], preferred: List[str]) -> Optional[str]:
     """Pick first preferred model present in available list (exact, then fuzzy contains)."""
@@ -137,7 +295,6 @@ def _pick_preferred_available(available: List[str], preferred: List[str]) -> Opt
             if pref_l in model.lower():
                 return model
     return None
-
 
 def _pick_fast_model(available: List[str]) -> Optional[str]:
     """Pick a fast/small model for routing/self-check tasks."""
@@ -162,7 +319,6 @@ def _pick_fast_model(available: List[str]) -> Optional[str]:
         return score if score > 0 else 9999.0
 
     return sorted(fast_candidates, key=fast_key)[0] if fast_candidates else None
-
 
 def _extract_json_object(raw: str) -> Optional[Dict[str, Any]]:
     """Extract and parse first JSON object from a raw model response."""
@@ -192,7 +348,6 @@ def _extract_json_object(raw: str) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
     return None
-
 
 def _extract_ollama_text(payload: Any) -> str:
     """Extract textual content from varied Ollama response shapes."""
@@ -224,21 +379,17 @@ def _extract_ollama_text(payload: Any) -> str:
         return "\n".join([c for c in chunks if c]).strip()
     return str(payload).strip()
 
-
 async def _ollama_chat_async(*, model: str, messages: List[Dict[str, Any]], **kwargs) -> Dict[str, Any]:
     """Run blocking Ollama chat call in worker thread."""
     return await asyncio.to_thread(ollama_client.chat, model=model, messages=messages, **kwargs)
-
 
 async def _ollama_generate_async(*, model: str, prompt: str, **kwargs) -> Dict[str, Any]:
     """Run blocking Ollama generate call in worker thread."""
     return await asyncio.to_thread(ollama_client.generate, model=model, prompt=prompt, **kwargs)
 
-
 async def _ollama_list_models_async() -> Dict[str, Any]:
     """Run blocking Ollama model listing in worker thread."""
     return await asyncio.to_thread(ollama_client.list_models)
-
 
 def _run_fast_router_check(
     user_message: str,
@@ -335,7 +486,6 @@ def _run_fast_router_check(
             "prefer_fast": False,
         }
 
-
 def _is_complex_request(msg: str) -> bool:
     if not msg:
         return False
@@ -348,7 +498,6 @@ def _is_complex_request(msg: str) -> bool:
     ]
     long_text = len(text) > 140 or len(text.split()) > 22
     return long_text or any(sig in text for sig in complexity_signals)
-
 
 def _auto_select_model(
     user_message: str,
@@ -396,7 +545,12 @@ def _auto_select_model(
         prefer_fast = True
 
     # Gateway can answer self-check style prompts with fast model.
+    # FIX: Aber wenn der Benutzer ein Modell explizit ausgewählt hat, verwende das!
     if self_question:
+        if requested_model and requested_model in available:
+            # Benutzer hat Modell explizit gewählt - verwende es!
+            _progress_add(progress_id, f"Model-Routing: Benutzer-Modell {requested_model}", "fa-code-branch")
+            return requested_model
         fast_self_model = _pick_fast_model(available)
         if fast_self_model:
             logger.info(f"Model-Routing: self-question -> {fast_self_model}")
@@ -420,11 +574,11 @@ def _auto_select_model(
                 _progress_add(progress_id, f"Model-Routing: Upgrade {requested_model} -> {upgraded}", "fa-code-branch")
                 return upgraded
         if prefer_fast and req_size >= 7.0:
-            fast_model = _pick_fast_model(available)
-            if fast_model:
-                logger.info(f"Model-Routing: fast-preference -> {requested_model} -> {fast_model}")
-                _progress_add(progress_id, f"Model-Routing: fast-preference -> {fast_model}", "fa-code-branch")
-                return fast_model
+            # BEHOBEN: Wenn Benutzer ein Modell explizit auswählt, verwende es!
+            # Das automatische Downgrade auf schnelle Modelle wird übersprungen,
+            # damit das gewählte Modell verwendet wird.
+            _progress_add(progress_id, f"Model-Routing: fixiertes Modell {requested_model}", "fa-code-branch")
+            return requested_model
         _progress_add(progress_id, f"Model-Routing: fixiertes Modell {requested_model}", "fa-code-branch")
         return requested_model
 
@@ -497,7 +651,6 @@ def _auto_select_model(
     _progress_add(progress_id, f"Model-Routing: fallback -> {final_model}", "fa-code-branch")
     return final_model
 
-
 def _normalize_telegram_chat_id(raw_id: Any) -> Optional[Any]:
     """Normalize chat id from config/session to int or @name string."""
     if raw_id is None:
@@ -512,7 +665,6 @@ def _normalize_telegram_chat_id(raw_id: Any) -> Optional[Any]:
     if text.startswith("@"):
         return text
     return f"@{text}"
-
 
 def _should_enable_self_qa(user_message: str, router_hint: Optional[Dict[str, Any]] = None) -> bool:
     """Enable lightweight self-questioning for complex or explicitly requested deep tasks."""
@@ -534,7 +686,6 @@ def _should_enable_self_qa(user_message: str, router_hint: Optional[Dict[str, An
     explicit = any(t in msg for t in explicit_terms)
     complex_hint = bool((router_hint or {}).get("complexity") == "high")
     return explicit or complex_hint or _is_complex_request(msg)
-
 
 def _run_self_qa_precheck(
     user_message: str,
@@ -646,7 +797,6 @@ def _run_self_qa_precheck(
         )
         return {"analysis_context": "", "thinking_steps": thinking_steps}
 
-
 def _get_telegram_target_chat_ids(bot) -> List[Any]:
     """Collect Telegram targets from active sessions and config."""
     targets = set()
@@ -679,7 +829,6 @@ def _get_telegram_target_chat_ids(bot) -> List[Any]:
 
     return list(targets)
 
-
 def _parse_explicit_telegram_targets(raw_targets: Any) -> List[Any]:
     """Parse explicit Telegram targets from API payload."""
     parsed: List[Any] = []
@@ -699,7 +848,6 @@ def _parse_explicit_telegram_targets(raw_targets: Any) -> List[Any]:
 
     return parsed
 
-
 def _infer_model_capabilities(name: str, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Infer practical model capabilities from model name/details."""
     lowered = (name or "").lower()
@@ -713,7 +861,6 @@ def _infer_model_capabilities(name: str, details: Optional[Dict[str, Any]] = Non
         "vision": supports_vision,
         "tools": supports_tools,
     }
-
 
 def _pick_vision_model(available: List[str], requested_model: Optional[str] = None) -> Optional[str]:
     """Pick a model that can process images."""
@@ -738,7 +885,6 @@ def _pick_vision_model(available: List[str], requested_model: Optional[str] = No
             return sorted(hinted, key=_extract_model_score, reverse=True)[0]
     return sorted(vision_candidates, key=_extract_model_score, reverse=True)[0]
 
-
 def _extract_search_term(text: str, triggers: List[str]) -> str:
     raw = (text or "").strip()
     lowered = raw.lower()
@@ -759,7 +905,6 @@ def _extract_search_term(text: str, triggers: List[str]) -> str:
     term = re.sub(r"\s+(?:als|bitte|danke|tabellarisch|json|tabelle)$", "", term, flags=re.IGNORECASE)
     return term.strip(' "')
 
-
 def _wants_summary_after_search(text: str) -> bool:
     lowered = (text or "").lower()
     summary_terms = [
@@ -772,7 +917,6 @@ def _wants_summary_after_search(text: str) -> bool:
         "ergebnis",
     ]
     return any(t in lowered for t in summary_terms)
-
 
 def _scan_image_models(max_items: int = 30) -> List[str]:
     """Look for common image model files from ComfyUI/Invoke and known model dirs."""
@@ -817,7 +961,6 @@ def _scan_image_models(max_items: int = 30) -> List[str]:
                 continue
     return sorted(results)
 
-
 def _is_tcp_port_open(host: str, port: int, timeout: float = 0.35) -> bool:
     """Best-effort TCP port probe."""
     try:
@@ -825,7 +968,6 @@ def _is_tcp_port_open(host: str, port: int, timeout: float = 0.35) -> bool:
             return True
     except Exception:
         return False
-
 
 def _get_tool_discovery(force: bool = False) -> Dict[str, Any]:
     """Discover optional local AI tools (ComfyUI/Invoke) with lightweight caching."""
@@ -882,7 +1024,6 @@ def _get_tool_discovery(force: bool = False) -> Dict[str, Any]:
     _DISCOVERY_CACHE = {"ts": now, "data": data}
     return data
 
-
 def _start_comfyui(discovery: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Try to start ComfyUI if installation is known."""
     info = discovery or _get_tool_discovery(force=True)
@@ -908,7 +1049,6 @@ def _start_comfyui(discovery: Optional[Dict[str, Any]] = None) -> Dict[str, Any]
     except Exception as e:
         return {"ok": False, "message": str(e)}
 
-
 def _progress_init(request_id: str) -> None:
     with _CHAT_PROGRESS_LOCK:
         _CHAT_PROGRESS[request_id] = {
@@ -918,7 +1058,6 @@ def _progress_init(request_id: str) -> None:
             "cancelled": False,
             "active_model": None,
         }
-
 
 def _progress_add(request_id: Optional[str], text: str, icon: str = "fa-brain", details: str = "") -> None:
     if not request_id:
@@ -937,7 +1076,6 @@ def _progress_add(request_id: Optional[str], text: str, icon: str = "fa-brain", 
         state["steps"].append(entry)
         state["updated_at"] = datetime.now().isoformat()
 
-
 def _progress_set_active_model(request_id: Optional[str], model: Optional[str]) -> None:
     if not request_id:
         return
@@ -946,7 +1084,6 @@ def _progress_set_active_model(request_id: Optional[str], model: Optional[str]) 
         if state is not None:
             state["active_model"] = model
             state["updated_at"] = datetime.now().isoformat()
-
 
 def _progress_mark_done(request_id: Optional[str]) -> None:
     if not request_id:
@@ -957,14 +1094,12 @@ def _progress_mark_done(request_id: Optional[str]) -> None:
             state["done"] = True
             state["updated_at"] = datetime.now().isoformat()
 
-
 def _progress_cancel(request_id: str) -> None:
     with _CHAT_PROGRESS_LOCK:
         state = _CHAT_PROGRESS.get(request_id)
         if state is not None:
             state["cancelled"] = True
             state["updated_at"] = datetime.now().isoformat()
-
 
 def _progress_is_cancelled(request_id: Optional[str]) -> bool:
     if not request_id:
@@ -973,11 +1108,9 @@ def _progress_is_cancelled(request_id: Optional[str]) -> bool:
         state = _CHAT_PROGRESS.get(request_id)
         return bool(state and state.get("cancelled"))
 
-
 def _ensure_not_cancelled(request_id: Optional[str]) -> None:
     if _progress_is_cancelled(request_id):
         raise ChatCancelled("Anfrage wurde abgebrochen")
-
 
 def _progress_get(request_id: str, since: int = 0) -> Dict[str, Any]:
     with _CHAT_PROGRESS_LOCK:
@@ -996,7 +1129,6 @@ def _progress_get(request_id: str, since: int = 0) -> Dict[str, Any]:
             "active_model": state.get("active_model"),
             "updated_at": state.get("updated_at"),
         }
-
 
 def _list_running_ollama_models() -> List[str]:
     """Best-effort parsing of `ollama ps` output."""
@@ -1023,7 +1155,6 @@ def _list_running_ollama_models() -> List[str]:
         return models
     except Exception:
         return []
-
 
 def _stop_ollama_model(model: str) -> Dict[str, Any]:
     if not model:
@@ -2116,8 +2247,6 @@ Ein neuer Chat wurde gestartet.
     ---
     Antworte jetzt auf meine Nachricht und führe bei Bedarf sofort die entsprechenden Shell-Befehle aus (angepasst an **{os_name}**)!"""
     
-    
-    
     # ===== HILFSMETHODEN =====
     def _get_recent_context(self, limit=3):
         """Gibt die letzten limit Konversationen zurück"""
@@ -2221,7 +2350,10 @@ Ein neuer Chat wurde gestartet.
         """Archiviert alten Memory-Inhalt"""
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            archive_name = f"MEMORY_ARCHIVE_{timestamp}.md"
+            # Erstelle memory_archive Verzeichnis falls nicht vorhanden
+            archive_dir = Path(__file__).parent.parent / "memory_archive"
+            archive_dir.mkdir(exist_ok=True)
+            archive_name = archive_dir / f"MEMORY_ARCHIVE_{timestamp}.md"
             # Aktuellen Memory-Inhalt aufteilen
             lines = self.memory_content.split('\n')
             # Erste Hälfte archivieren
@@ -2331,27 +2463,34 @@ Ein neuer Chat wurde gestartet.
         else:
             return ""
 
-def select_best_model(prompt: str) -> str:
-    """Wählt automatisch das passende Modell basierend auf der Komplexität."""
-    # 1. Wenn der Prompt sehr kurz ist -> Schnelles, kleines Modell
-    if len(prompt) < 100:
-        return "sam860/LFM2:2.6b"  # Dein schnelles LFM
-    
-    # 2. Wenn nach Code gefragt wird -> Ein spezialisiertes Modell (falls vorhanden)
-    if any(word in prompt.lower() for word in ["code", "python", "skript", "programm"]):
-        return "codellama" # Beispiel
-    
-    # 3. Default: Das starke Allround-Modell aus deiner Config
+def select_best_model(prompt: str, requested_model: str = None) -> str:
+    """
+    Wählt automatisch das passende Modell basierend auf der Komplexität.
+
+    Args:
+        prompt: Die Benutzer-Eingabe
+        requested_model: Explizit angefordertes Modell (hat Vorrang!)
+
+    Returns:
+        Modell-Name
+    """
+    # 1. Wenn der Benutzer ein Modell explizit angegeben hat -> IMMER verwenden!
+    if requested_model and requested_model.strip() and requested_model != "__AUTO__":
+        return requested_model.strip()
+
+    # 2. Bei __AUTO__: Default-Modell verwenden (NICHT das schnelle!)
+    if requested_model == "__AUTO__" or requested_model is None:
+        return config.get("ollama.default_model", "llama3")
+
+    # 3. Default: Das starke Allround-Modell
     return config.get("ollama.default_model", "llama3")
 
 # Globale Memory-Instanz
 chat_memory = ChatMemory()
 #######################################################################
-#######################################################################
 # =====================================================================
 # ============ Ollama Chat Endpoints ============
 # =====================================================================
-#######################################################################
 #######################################################################
 @router.get("/", response_class=HTMLResponse)
 async def get_dashboard():
@@ -2783,14 +2922,12 @@ async def chat_with_ollama(request: ChatRequest, token: str = Header(None)):
     finally:
         _progress_mark_done(request_id)
 
-
 @router.get("/api/chat/progress/{request_id}")
 async def get_chat_progress(request_id: str, since: int = 0, token: str = Header(None)):
     """Poll live progress steps for a running chat request."""
     if token != API_KEY_REQUIRED:
         raise HTTPException(status_code=403, detail="API-Key ungültig")
     return _progress_get(request_id, since=since)
-
 
 @router.post("/api/chat/stop")
 async def stop_chat(payload: dict, token: str = Header(None)):
@@ -2835,7 +2972,6 @@ async def stop_chat(payload: dict, token: str = Header(None)):
         "stopped_models": stopped_models,
         "models_attempted": list(seen),
     }
-
 
 async def handle_command(message: str, token: str):
     """Behandelt Befehle wie /shell, /memory, /soul, /new, /archives, etc."""
@@ -2960,41 +3096,6 @@ async def handle_command(message: str, token: str):
                     "reply": f"❌ Fehler: {result.get('stderr', 'Unbekannter Fehler')}",
                     "tool_used": "shell",
                     "command_executed": result.get("command_executed"),
-                }
-                
-        except subprocess.TimeoutExpired:
-            return {
-                "status": "success",
-                "reply": "❌ Timeout: Der Befehl wurde nach 30 Sekunden abgebrochen."
-            }
-        except Exception as e:
-            logger.error(f"Shell-Befehl Fehler: {e}")
-            return {
-                "status": "success",
-                "reply": f"❌ **Fehler beim Ausführen:**\n```\n{str(e)}\n```"
-            }
-            
-            # Normale Ausführung ohne Pipe
-            shell_request = ShellRequest(command=args[0], 
-                                       args=args[1:] if len(args) > 1 else [])
-            result = await execute_command(shell_request, token)
-            
-            if result.get("status") == "success":
-                output = result.get('stdout', '')
-                if output:
-                    return {
-                        "status": "success",
-                        "reply": f"```\n{output[:4000]}\n```"
-                    }
-                else:
-                    return {
-                        "status": "success",
-                        "reply": f"✅ Befehl ausgeführt (keine Ausgabe)"
-                    }
-            else:
-                return {
-                    "status": "success",
-                    "reply": f"❌ Fehler: {result.get('stderr', 'Unbekannter Fehler')}"
                 }
                 
         except subprocess.TimeoutExpired:
@@ -3754,9 +3855,189 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
     elif command == "status":
         status = chat_memory.heartbeat_content
         return {
-            "status": "success", 
+            "status": "success",
             "reply": f"📊 **System-Status:**\n```\n{status}\n```"
         }
+
+    # ===== WEBCAM =====
+    elif command == "webcam":
+        try:
+            vision = get_gabi_vision()
+            if not vision:
+                return {"status": "error", "reply": "❌ Vision-Modul nicht verfügbar"}
+
+            if not args or args[0] in ["capture", "photo"]:
+                # Webcam-Foto aufnehmen
+                result = vision.capture_webcam()
+                if result.get("success"):
+                    b64 = result.get("base64", "")
+                    return {
+                        "status": "success",
+                        "reply": f"📷 Webcam-Foto aufgenommen!\nPfad: `{result['path']}`\n\n[Bild anzeigen]({result['path']})",
+                        "image_path": result["path"],
+                        "base64": b64
+                    }
+                else:
+                    return {"status": "error", "reply": f"❌ Webcam-Fehler: {result.get('error', 'Unbekannt')}"}
+
+            elif args[0] == "status":
+                # Status anzeigen
+                status = vision.get_motion_status()
+                is_active = vision._webcam_active if hasattr(vision, '_webcam_active') else False
+                last_objects = vision._last_yolo_objects if hasattr(vision, '_last_yolo_objects') else []
+
+                msg = "🔍 **Webcam-Status:**\n\n"
+                msg += f"• Stream aktiv: {'✅ Ja' if is_active else '❌ Nein'}\n"
+
+                if last_objects:
+                    obj_list = ", ".join([f"{o['class']}" for o in last_objects[:5]])
+                    msg += f"• Letzte Erkennung: {obj_list}\n"
+                else:
+                    msg += "• Letzte Erkennung: Keine\n"
+
+                msg += "\n**Befehle:**\n"
+                msg += "• `/webcam` - Foto aufnehmen\n"
+                msg += "• `/webcam detect` - Einmal erkennen\n"
+                msg += "• `/webcam detect stream` - Stream starten\n"
+                msg += "• `/webcam detect stop` - Stream stoppen\n"
+
+                return {"status": "success", "reply": msg}
+
+            elif args[0] == "detect":
+                # Prüfe auf stream-modus
+                if len(args) > 1 and args[1] in ["stream", "watch", "kontinuierlich", "continuous"]:
+                    # Kontinuierliche YOLO-Erkennung starten
+                    result = vision.start_yolo_stream(interval=2.0)
+                    if result.get("success"):
+                        return {"status": "success", "reply": "🔍 **YOLO-Stream gestartet!**\n\nKontinuierliche Objekterkennung läuft im Hintergrund.\nErkennungen werden im Log ausgegeben.\n\nStoppen mit: `/webcam detect stop`"}
+                    else:
+                        return {"status": "error", "reply": f"❌ Fehler: {result.get('error')}"}
+
+                elif len(args) > 1 and args[1] in ["stop", "stopp"]:
+                    # Stoppe Stream
+                    vision.stop_yolo_stream()
+                    return {"status": "success", "reply": "⏹️ YOLO-Stream gestoppt."}
+
+                # Einzelne Erkennung
+                result = vision.capture_webcam()
+                if not result.get("success"):
+                    return {"status": "error", "reply": f"❌ Webcam-Fehler: {result.get('error')}"}
+
+                detect_result = vision.detect_objects(result["path"])
+                if detect_result.get("success"):
+                    objects = detect_result.get("objects", [])
+                    if objects:
+                        obj_list = ", ".join([f"{o['class']} ({o['confidence']:.0%})" for o in objects[:10]])
+                        return {"status": "success", "reply": f"🔍 **Erkannte Objekte:**\n{obj_list}"}
+                    return {"status": "success", "reply": "🔍 Keine Objekte erkannt."}
+                else:
+                    return {"status": "error", "reply": f"❌ YOLO-Fehler: {detect_result.get('error')}"}
+
+            elif args[0] in ["stream", "watch", "kontinuierlich", "continuous"]:
+                # Legacy: Kontinuierliche Erkennung (alternative zum detect stream)
+                result = vision.start_yolo_stream(interval=2.0)
+                if result.get("success"):
+                    return {"status": "success", "reply": "🔍 **YOLO-Stream gestartet!**\n\nStoppen mit: `/webcam detect stop`"}
+                    return {
+                        "status": "error",
+                        "reply": f"❌ Fehler: {result.get('error')}"
+                    }
+
+            elif args[0] in ["stop", "stopp"]:
+                vision.stop_yolo_stream()
+                vision.stop_motion_detection()
+                return {"status": "success", "reply": "⏹️ Alle Streams gestoppt."}
+
+            else:
+                return {"status": "error", "reply": "❌ Nutze `/webcam`, `/webcam capture`, `/webcam detect`, `/webcam stream` oder `/webcam stop`"}
+
+        except Exception as e:
+            return {"status": "error", "reply": f"❌ Webcam-Fehler: {e}"}
+
+    # ===== VISION (BILD ANALYSIEREN) =====
+    elif command == "vision":
+        try:
+            vision = get_gabi_vision()
+            if not vision:
+                return {"status": "error", "reply": "❌ Vision-Modul nicht verfügbar"}
+
+            if not args:
+                return {"status": "error", "reply": "❌ Nutze `/vision <pfad>` z.B. `/vision screenshots/webcam/webcam_20260218_190451.png`"}
+
+            # Pfad aus Argumenten zusammensetzen
+            image_path = " ".join(args)
+
+            # Handle @ prefix falls vorhanden
+            if image_path.startswith("@"):
+                image_path = image_path[1:]
+
+            # Relativen Pfad in absoluten umwandeln
+            if not os.path.isabs(image_path):
+                base_dir = Path(__file__).parent.parent
+                image_path = str(base_dir / image_path)
+
+            if not os.path.exists(image_path):
+                return {"status": "error", "reply": f"❌ Datei nicht gefunden: {image_path}"}
+
+            # Bild analysieren (async Funktion)
+            result = await vision.analyze_screenshot_with_ai(image_path, prompt="Beschreibe was du auf diesem Bild siehst.")
+
+            if result.get("success"):
+                analysis = result.get("analysis", "Keine Analyse erhalten")
+                return {
+                    "status": "success",
+                    "reply": f"🔍 **Bildanalyse:**\n{analysis}",
+                    "image_path": result.get("path")
+                }
+            else:
+                return {"status": "error", "reply": f"❌ Analyse-Fehler: {result.get('error', 'Unbekannt')}"}
+
+        except Exception as e:
+            return {"status": "error", "reply": f"❌ Vision-Fehler: {e}"}
+
+    # ===== WHISPER =====
+    elif command == "whisper":
+        import subprocess
+        import requests
+
+        try:
+            if not args:
+                return {"status": "error", "reply": "❌ Nutze `/whisper status` oder `/whisper listen`"}
+
+            sub = args[0].lower()
+
+            if sub == "status":
+                # Whisper-Server prüfen
+                try:
+                    r = requests.get("http://127.0.0.1:9090/health", timeout=2)
+                    if r.status_code == 200:
+                        return {"status": "success", "reply": "🎤 Whisper-Server: ✅ Läuft auf Port 9090"}
+                    return {"status": "error", "reply": "❌ Whisper-Server antwortet nicht korrekt"}
+                except:
+                    return {"status": "error", "reply": "❌ Whisper-Server nicht erreichbar auf Port 9090\n\nStarte mit:\n`server.exe -m M:\\whisper\\whisper.cpp\\models\\ggml-large-v3.bin --port 9090 --host 127.0.0.1 -l de`"}
+
+            elif sub == "listen":
+                # Audio aufnehmen - nutze Frontend MediaRecorder
+                return {
+                    "status": "success",
+                    "reply": """🎤 **Audio aufnehmen:**
+
+Klicke auf den **Whisper-Button** im Web-Interface (unten links im Chat)!
+
+Das nutzt den Browser-Mechanismus für Audio-Aufnahme:
+1. Klick auf 🎤 Whisper Button
+2. Klick nochmal zum Stoppen
+3. Audio wird automatisch an Whisper gesendet
+
+**Oder:** Nimm extern auf und lade die Datei im Chat hoch."""
+                }
+
+            else:
+                return {"status": "error", "reply": "❌ Nutze `/whisper status` oder `/whisper listen`"}
+
+        except Exception as e:
+            return {"status": "error", "reply": f"❌ Whisper-Fehler: {e}"}
+
     # ===== LERNSTATUS ANZEIGEN =====
     elif command == "learn":
         stats = f"""
@@ -3769,7 +4050,6 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
 💡 **Persönliche Infos:** {len(chat_memory.important_info)} gespeichert
 """
         return {"status": "success", "reply": stats}
-
 
     # ===== HILFE =====
     elif command == "help":
@@ -3821,6 +4101,28 @@ Der Bot läuft als interaktiver Bot. Benutzer können ihm schreiben und er antwo
     `/soul` - Persönlichkeit anzeigen
     `/generate-soul` - Soul generieren/aktualisieren
     `/learn` - Zeige was ich über dich gelernt habe
+
+    **📷 WEBCAM & VISION:**
+    `/webcam` - Webcam-Foto aufnehmen
+    `/webcam detect` - Einmalige Objekterkennung
+    `/webcam detect stream` - Kontinuierliche YOLO-Erkennung
+    `/webcam detect stop` - Stream stoppen
+    `/vision <pfad>` - Bild analysieren
+
+    **🎤 WHISPER (Spracherkennung):**
+    `/whisper status` - Whisper-Server Status
+    `/whisper listen` - Audio aufnehmen und transkribieren
+
+    **📷 WEBCAM & VISION:**
+    `/webcam` - Webcam-Foto aufnehmen
+    `/webcam detect` - Einmalige Objekterkennung
+    `/webcam detect stream` - Kontinuierliche YOLO-Erkennung
+    `/webcam detect stop` - Stream stoppen
+    `/vision <pfad>` - Bild analysieren
+
+    **🎤 WHISPER (Spracherkennung):**
+    `/whisper status` - Whisper-Server Status
+    `/whisper listen` - Audio aufnehmen und transkribieren
 
     **📊 SYSTEM:**
     `/status` - System-Status anzeigen
@@ -3926,6 +4228,62 @@ async def get_memory(_api_key: str = Depends(verify_api_key)):
         "conversation_count": len(chat_memory.conversation_history) // 2,
         "last_updated": datetime.now().isoformat(),
     }
+
+# ============ Vision/YOLO Stream Endpoint ============
+@router.get("/api/vision/stream-status")
+async def get_vision_stream_status(_api_key: str = Depends(verify_api_key)):
+    """Gibt den Status des YOLO-Streams zurück"""
+    vision = get_gabi_vision()
+    if not vision:
+        return {"active": False, "objects": [], "error": "Vision nicht verfügbar"}
+
+    return {
+        "active": vision._webcam_active if hasattr(vision, '_webcam_active') else False,
+        "objects": vision._last_yolo_objects if hasattr(vision, '_last_yolo_objects') else [],
+        "timestamp": datetime.now().isoformat()
+    }
+
+@router.post("/api/vision/stream-start")
+async def start_vision_stream(
+    interval: float = 2.0,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Startet den YOLO-Stream"""
+    vision = get_gabi_vision()
+    if not vision:
+        return {"success": False, "error": "Vision nicht verfügbar"}
+
+    result = vision.start_yolo_stream(interval=interval)
+    return result
+
+@router.post("/api/vision/stream-stop")
+async def stop_vision_stream(_api_key: str = Depends(verify_api_key)):
+    """Stoppt den YOLO-Stream"""
+    vision = get_gabi_vision()
+    if not vision:
+        return {"success": False, "error": "Vision nicht verfügbar"}
+
+    return vision.stop_yolo_stream()
+
+# ============ Vision Stream Endpoint ============
+@router.get("/api/vision/stream")
+async def get_vision_stream(_api_key: str = Depends(verify_api_key)):
+    """Gibt den aktuellen YOLO-Stream Status und letzte Erkennungen zurück"""
+    try:
+        vision = get_gabi_vision()
+        if not vision:
+            return {"active": False, "objects": [], "error": "Vision nicht verfügbar"}
+
+        is_active = getattr(vision, '_webcam_active', False)
+        last_objects = getattr(vision, '_last_yolo_objects', [])
+
+        return {
+            "active": is_active,
+            "objects": last_objects,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {"active": False, "objects": [], "error": str(e)}
 # Optional: Methode zum manuellen Archivieren
 @router.post("/api/memory/archive")
 async def archive_memory(_api_key: str = Depends(verify_api_key)):
@@ -3941,7 +4299,10 @@ async def archive_memory(_api_key: str = Depends(verify_api_key)):
             }
         else:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            archive_name = f"MEMORY_ARCHIVE_{timestamp}.md"
+            # Erstelle memory_archive Verzeichnis falls nicht vorhanden
+            archive_dir = Path(__file__).parent.parent / "memory_archive"
+            archive_dir.mkdir(exist_ok=True)
+            archive_name = archive_dir / f"MEMORY_ARCHIVE_{timestamp}.md"
             with open(MEMORY_FILE, "r", encoding="utf-8") as f:
                 content = f.read()
             with open(archive_name, "w", encoding="utf-8") as f:
@@ -4170,6 +4531,61 @@ async def transcribe_audio(
         logger.error(f"Whisper transcribe error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# === VOICE API ALIAS ===
+@router.post("/api/voice/transcribe")
+async def voice_transcribe(
+    file: UploadFile = File(...),
+    language: Optional[str] = None,
+    _api_key: str = Depends(verify_api_key),
+) -> dict:
+    """
+    Voice Transcription Endpoint - Alias für /api/whisper/transcribe/sync.
+    Nimmt Audio-Dateien entgegen, transkribiert sie mit Whisper und
+    gibt das Ergebnis zurück das in den Chat-Kontext eingespeist werden kann.
+    """
+    tmp_path = None
+    try:
+        whisper = get_whisper_client()
+        if not whisper.is_available():
+            raise HTTPException(status_code=503, detail="Whisper server not available")
+
+        # Temporäre Datei erstellen
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix if file.filename else '.wav') as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        filename = file.filename or 'audio.wav'
+        logger.info(f"🎤 Voice Transcribe: {filename} ({len(content)} bytes)")
+
+        # Transkribieren
+        result = whisper.transcribe_file(tmp_path, language)
+
+        if result.get("status") == "success":
+            return {
+                "status": "success",
+                "text": result.get("text", ""),
+                "language": result.get("language", "unknown"),
+                "duration": result.get("duration", 0),
+                "confidence": result.get("result", {}).get("avg_logprob", None)
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Transcription failed"))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Voice transcribe error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Aufräumen
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+
 @router.post("/api/whisper/transcribe/sync")
 async def transcribe_audio_sync(
     file: UploadFile = File(...),
@@ -4190,11 +4606,53 @@ async def transcribe_audio_sync(
         # Datei-Infos
         filename = getattr(file, 'filename', 'audio.wav')
         logger.info(f"🎤 Empfange Datei: {filename}")
-        
-        # Lese Datei direkt in Memory (kein temp file nötig für diesen Test)
+
+        # Lese Datei direkt in Memory
         content = await file.read()
         logger.info(f"📦 Dateigröße: {len(content)} bytes")
-        
+
+        # Konvertiere webm zu wav falls nötig
+        import io
+        import subprocess
+
+        input_ext = filename.split('.')[-1].lower() if '.' in filename else 'webm'
+
+        if input_ext in ['webm', 'mp4', 'm4a', 'ogg'] and len(content) > 0:
+            # Konvertiere zu wav mit ffmpeg
+            try:
+                # Erst einen temp input
+                import tempfile
+                with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{input_ext}') as tmp_in:
+                    tmp_in.write(content)
+                    tmp_in_path = tmp_in.name
+
+                tmp_out = tempfile.NamedTemporaryFile(delete=False, suffix='.wav')
+                tmp_out_path = tmp_out.name
+                tmp_out.close()
+
+                # Konvertiere
+                result = subprocess.run([
+                    'ffmpeg', '-y', '-i', tmp_in_path,
+                    '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le',
+                    tmp_out_path
+                ], capture_output=True, timeout=30)
+
+                os.unlink(tmp_in_path)
+
+                if result.returncode == 0 and os.path.getsize(tmp_out_path) > 1000:
+                    with open(tmp_out_path, 'rb') as f:
+                        content = f.read()
+                    filename = 'audio.wav'
+                    os.unlink(tmp_out_path)
+                    logger.info(f"🔄 Konvertiert zu wav: {len(content)} bytes")
+                else:
+                    logger.warning(f"ffmpeg Konvertierung fehlgeschlagen: {result.stderr.decode()}")
+                    if os.path.exists(tmp_out_path):
+                        os.unlink(tmp_out_path)
+
+            except Exception as e:
+                logger.error(f"Konvertierungsfehler: {e}")
+
         # Sende DIREKT an Whisper-Server
         import requests
         
@@ -4247,6 +4705,20 @@ async def transcribe_audio_sync(
             "status": "error",
             "error": str(e)
         }
+
+# Alias für /api/voice/transcribe (zusätzlicher Endpunkt)
+@router.post("/api/voice/transcribe")
+async def voice_transcribe(
+    file: UploadFile = File(...),
+    language: Optional[str] = None,
+    _api_key: str = Depends(verify_api_key),
+) -> dict:
+    """
+    Voice transcription endpoint - alias für /api/whisper/transcribe/sync.
+    Nimmt Audio-Dateien entgegen und transkribiert sie mit Whisper.
+    """
+    # Delegiere an den bestehenden sync-Endpoint
+    return await transcribe_audio_sync(file, language, _api_key)
 
 # ============ Telegram Endpoints ============
 @router.get("/api/telegram/status")
@@ -4440,7 +4912,6 @@ async def telegram_broadcast(
     except Exception as e:
         logger.error(f"Telegram broadcast error: {e}")
         return {"success": False, "error": str(e)}
-
 
 # ============ Health Check ============
 @router.get("/health")
@@ -4996,7 +5467,6 @@ async def get_file(filename: str, _api_key: str = Depends(verify_api_key)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/api/files/list")
 async def list_workspace_files(
     query: str = "",
@@ -5022,7 +5492,6 @@ async def list_workspace_files(
         return {"files": files, "count": len(files)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/api/files/read")
 async def read_workspace_file(
@@ -5050,7 +5519,6 @@ async def read_workspace_file(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/api/chat/image/analyze")
 async def analyze_image_with_vlm(
@@ -5253,15 +5721,15 @@ async def list_calendar_events(
         logger.error(f"Calendar list error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/api/chat")
 async def chat_endpoint(data: dict):
     prompt = data.get("message", "")
     if not prompt:
         return {"status": "error", "response": "Keine Nachricht empfangen."}
 
-    # 1. Automatische Modell-Auswahl
-    selected_model = select_best_model(prompt)
+    # 1. Automatische Modell-Auswahl (mit explizitem Modell-Vorrang)
+    requested_model = data.get("model")  # Optional: vom Client übergeben
+    selected_model = select_best_model(prompt, requested_model)
     
     try:
         # GABI antwortet
@@ -5397,3 +5865,413 @@ async def get_current_model(_api_key: str = Depends(verify_api_key)):
         "status": "success",
         "current_model": ollama_client.default_model
     }
+
+# === GABI Autonomes Agenten-Framework ===
+
+@router.post("/api/daemon/task")
+async def run_daemon_task(
+    task_description: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Führt eine Task manuell aus."""
+    from gateway.daemon import get_daemon
+
+    daemon = get_daemon()
+    result = daemon.run_task_manually(task_description)
+
+    return {
+        "status": "success",
+        "result": result
+    }
+
+@router.get("/api/daemon/status")
+async def get_daemon_status(_api_key: str = Depends(verify_api_key)):
+    """Gibt den Status des Daemons zurück."""
+    from gateway.daemon import get_daemon
+
+    daemon = get_daemon()
+    return {
+        "status": "success",
+        "running": daemon.running,
+        "interval": daemon.interval
+    }
+
+@router.post("/api/skill/create")
+async def create_skill(
+    requirement: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Erstellt einen neuen Skill basierend auf einer Anforderung."""
+    from gateway.skill_factory import create_skill
+
+    result = create_skill(requirement)
+    return {
+        "status": "success" if result.get("success") else "error",
+        "result": result
+    }
+
+@router.get("/api/memory/autolearn")
+async def get_autolearn_memory(_api_key: str = Depends(verify_api_key)):
+    """Gibt das AutoLearn Memory zurück."""
+    from gateway.memory_extensions import get_memory
+
+    memory = get_memory()
+    return {
+        "status": "success",
+        "skills": memory.get_all_skills(),
+        "active_skills": memory.get_active_skills()
+    }
+
+@router.get("/api/memory/has-skill/{skill_identifier}")
+async def check_skill(
+    skill_identifier: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Prüft ob GABI einen Skill hat."""
+    from gateway.memory_extensions import has_skill
+
+    return {
+        "status": "success",
+        "has_skill": has_skill(skill_identifier)
+    }
+
+@router.post("/api/security/validate")
+async def validate_code(
+    code: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Validiert Code durch das Security Gate."""
+    from gateway.security_gate import validate_code
+
+    result = validate_code(code)
+    return {
+        "status": "success",
+        "result": result
+    }
+
+# === DAEMON & AUTONOMOUS AGENT API ===
+
+@router.post("/api/daemon/task")
+async def create_task(
+    requirement: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Erstellt und führt eine neue Task aus (manuell)."""
+    try:
+        from gateway.daemon import get_daemon
+
+        daemon = get_daemon()
+        result = daemon.run_task_manually(requirement)
+
+        return {
+            "status": "success",
+            "result": result
+        }
+    except Exception as e:
+        logger.error(f"Fehler bei Task-Erstellung: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/daemon/status")
+async def get_daemon_status(_api_key: str = Depends(verify_api_key)):
+    """Gibt den Status des Daemons zurück."""
+    try:
+        from gateway.daemon import get_daemon
+
+        daemon = get_daemon()
+
+        return {
+            "status": "success",
+            "running": daemon.running,
+            "interval": daemon.interval,
+            "thread": str(daemon.thread) if daemon.thread else None
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Abrufen des Daemon-Status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/daemon/start")
+async def start_daemon(_api_key: str = Depends(verify_api_key)):
+    """Startet den Daemon."""
+    try:
+        from gateway.daemon import start_daemon as start
+
+        start()
+
+        return {
+            "status": "success",
+            "message": "Daemon gestartet"
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Starten des Daemons: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/daemon/stop")
+async def stop_daemon(_api_key: str = Depends(verify_api_key)):
+    """Stoppt den Daemon."""
+    try:
+        from gateway.daemon import stop_daemon as stop
+
+        stop()
+
+        return {
+            "status": "success",
+            "message": "Daemon gestoppt"
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Stoppen des Daemons: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/autolearn/skills")
+async def get_autolearn_skills(_api_key: str = Depends(verify_api_key)):
+    """Gibt alle AutoLearn Skills zurück."""
+    try:
+        from gateway.memory_extensions import get_memory
+
+        memory = get_memory()
+        skills = memory.get_all_skills()
+
+        return {
+            "status": "success",
+            "skills": skills,
+            "count": len(skills)
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Abrufen der Skills: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/autolearn/skill/{skill_name}")
+async def get_skill(
+    skill_name: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Gibt einen spezifischen Skill zurück."""
+    try:
+        from gateway.memory_extensions import get_memory
+
+        memory = get_memory()
+        skill = memory.find_skill(skill_name)
+
+        if not skill:
+            raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' nicht gefunden")
+
+        return {
+            "status": "success",
+            "skill": skill
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Fehler beim Abrufen des Skills: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/autolearn/check")
+async def check_skill(
+    skill_identifier: str,
+    _api_key: str = Depends(verify_api_key)
+):
+    """Prüft ob GABI bereits einen Skill für etwas hat."""
+    try:
+        from gateway.memory_extensions import has_skill
+
+        exists = has_skill(skill_identifier)
+
+        return {
+            "status": "success",
+            "skill_identifier": skill_identifier,
+            "has_skill": exists
+        }
+    except Exception as e:
+        logger.error(f"Fehler beim Prüfen des Skills: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============ GUI Controller Endpoints ============
+
+@router.get("/api/gui/status")
+async def gui_status(_api_key: str = Depends(verify_api_key)) -> dict:
+    """Check GUI Controller availability."""
+    try:
+        gui = get_gui_controller()
+        status = gui.check_available()
+        return {"status": "success", **status}
+    except Exception as e:
+        logger.error(f"GUI status error: {e}")
+        return {"status": "error", "error": str(e)}
+
+@router.get("/api/gui/screensize")
+async def gui_screen_size(_api_key: str = Depends(verify_api_key)) -> dict:
+    """Get screen dimensions."""
+    try:
+        gui = get_gui_controller()
+        return gui.get_screen_size()
+    except Exception as e:
+        logger.error(f"GUI screensize error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/screenshot")
+async def gui_screenshot(
+    filename: Optional[str] = None,
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Take a screenshot."""
+    try:
+        gui = get_gui_controller()
+        return gui.screen_capture(filename)
+    except Exception as e:
+        logger.error(f"GUI screenshot error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/open")
+async def gui_open_app(
+    app_name: str = Form(...),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Open an application via Windows Search."""
+    try:
+        gui = get_gui_controller()
+        result = gui.win_search_and_open(app_name)
+        
+        # Feedback in Memory dokumentieren
+        if result.get("success"):
+            _log_gui_action("open_app", app_name, result)
+        
+        return result
+    except Exception as e:
+        logger.error(f"GUI open error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.get("/api/gui/windows")
+async def gui_window_list(_api_key: str = Depends(verify_api_key)) -> dict:
+    """List all open windows."""
+    try:
+        gui = get_gui_controller()
+        return gui.get_window_titles()
+    except Exception as e:
+        logger.error(f"GUI windows error: {e}")
+        return {"success": False, "error": str(e), "windows": []}
+
+@router.post("/api/gui/click")
+async def gui_click(
+    x: int = Form(...),
+    y: int = Form(...),
+    button: str = Form("left"),
+    double: bool = Form(False),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Perform a safe mouse click."""
+    try:
+        gui = get_gui_controller()
+        result = gui.safe_click(x, y, button, double)
+        
+        if result.get("success"):
+            _log_gui_action("click", f"({x}, {y})", result)
+        
+        return result
+    except Exception as e:
+        logger.error(f"GUI click error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/type")
+async def gui_type_text(
+    text: str = Form(...),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Type text."""
+    try:
+        gui = get_gui_controller()
+        return gui.type_text(text)
+    except Exception as e:
+        logger.error(f"GUI type error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/press")
+async def gui_press_key(
+    key: str = Form(...),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Press a key."""
+    try:
+        gui = get_gui_controller()
+        return gui.press_key(key)
+    except Exception as e:
+        logger.error(f"GUI press error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/hotkey")
+async def gui_hotkey(
+    keys: List[str] = Form(...),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Press a key combination."""
+    try:
+        gui = get_gui_controller()
+        return gui.hotkey(*keys)
+    except Exception as e:
+        logger.error(f"GUI hotkey error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/find-icon")
+async def gui_find_icon(
+    template_path: str = Form(...),
+    threshold: float = Form(0.8),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Find an icon on screen."""
+    try:
+        gui = get_gui_controller()
+        return gui.find_icon_on_screen(template_path, threshold)
+    except Exception as e:
+        logger.error(f"GUI find icon error: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.post("/api/gui/click-icon")
+async def gui_click_icon(
+    template_path: str = Form(...),
+    threshold: float = Form(0.8),
+    _api_key: str = Depends(verify_api_key)
+) -> dict:
+    """Find and click an icon on screen."""
+    try:
+        gui = get_gui_controller()
+        result = gui.click_icon(template_path, threshold)
+        
+        if result.get("success"):
+            _log_gui_action("click_icon", template_path, result)
+        
+        return result
+    except Exception as e:
+        logger.error(f"GUI click icon error: {e}")
+        return {"success": False, "error": str(e)}
+
+def _log_gui_action(action: str, target: str, result: dict):
+    """Dokumentiert GUI-Aktionen in MEMORY.md."""
+    try:
+        from datetime import datetime
+        import os
+        
+        memory_path = Path("MEMORY.md")
+        if not memory_path.exists():
+            return
+        
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Prüfen ob Memory-Datei recent genug ist (nicht zu groß)
+        if memory_path.stat().st_size > 10_000_000:  # 10MB Limit
+            logger.warning("MEMORY.md zu groß, keine neuen Einträge")
+            return
+        
+        content = memory_path.read_text(encoding="utf-8")
+        
+        entry = f"""
+## GUI-Aktion [{timestamp}]
+- **Aktion**: {action}
+- **Ziel**: {target}
+- **Erfolg**: {'Ja' if result.get('success') else 'Nein'}
+- **Details**: {result.get('message', result.get('error', 'N/A'))}
+"""
+        
+        # Am Ende hinzufügen
+        memory_path.write_text(content + entry, encoding="utf-8")
+        logger.info(f"GUI-Aktion dokumentiert: {action} -> {target}")
+        
+    except Exception as e:
+        logger.error(f"Fehler beim Dokumentieren der GUI-Aktion: {e}")

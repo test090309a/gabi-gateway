@@ -36,7 +36,9 @@ class ShellExecutor:
                 text=True,
                 timeout=60,
                 shell=True,
-                cwd=os.getcwd()
+                cwd=os.getcwd(),
+                encoding='cp850',
+                errors='replace'
             )
 
             return {

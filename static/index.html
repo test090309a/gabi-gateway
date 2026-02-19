@@ -665,57 +665,6 @@ a[target="_blank"]:hover i {
                 </div>
             </div>
 
-            <!-- System Info -->
-            <div id="system-info" class="flex flex-wrap items-center gap-3 text-sm max-w-3xl">
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-microchip text-[var(--text-muted)]"></i>
-                    <span id="os-info" class="text-[var(--text-secondary)]">System wird geladen...</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-database text-[var(--text-muted)]"></i>
-                    <span id="storage-info" class="text-[var(--text-secondary)]">-</span>
-                </div>
-                <!-- Whisper Status -->
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-microphone text-[var(--text-muted)]"></i>
-                    <span id="whisper-status" class="text-[var(--text-secondary)]">Whisper wird geladen...</span>
-                </div>
-                <!-- Telegram Status -->
-                <div class="flex items-center gap-2">
-                    <i class="fab fa-telegram text-[var(--text-muted)]"></i>
-                    <span id="telegram-status" class="text-[var(--text-secondary)]">Telegram wird geladen...</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-envelope text-[var(--text-muted)]"></i>
-                    <span id="gmail-status" class="text-[var(--text-secondary)]">Gmail wird geladen...</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <i class="far fa-calendar-alt text-[var(--text-muted)]"></i>
-                    <span id="calendar-status" class="text-[var(--text-secondary)]">Kalender wird geladen...</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-palette text-[var(--text-muted)]"></i>
-                    <span id="comfy-status" class="text-[var(--text-secondary)]">Comfy/Invoke wird geladen...</span>
-                </div>
-            </div>
-
-            <!-- LLM Info & Model Selector -->
-            <div class="flex items-center gap-3">
-                <div class="text-right">
-                    <div class="flex items-center gap-2" style="display: block;">
-                        <i class="fas fa-brain text-[var(--accent)]"></i>
-                        <select id="model-selector" class="model-select">
-                            <option value="">Modelle laden...</option>
-                        </select>
-                    </div>
-                    <div id="llm-status" class="text-xs flex items-center gap-1 mt-1" style="display: block;">
-                        <span class="status-badge status-offline">
-                            <i class="fas fa-circle text-xs"></i>
-                            Prüfe Verbindung...
-                        </span>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -810,6 +759,73 @@ a[target="_blank"]:hover i {
         </div>
     </div>
 </div>
+
+
+<!-- Im Dashboard - GABIs Gehirn visualisieren -->
+<div class="brain-container">
+    <div class="hemisphere left">
+        <h3>🔵 Linke Hemisphäre</h3>
+        <div class="specialties">
+            <span class="badge">Code</span>
+            <span class="badge">Shell</span>
+            <span class="badge">Analysis</span>
+        </div>
+        <div class="status">
+            Aktiv: <span class="indicator green"></span>
+        </div>
+    </div>
+    
+    <div class="corpus-callosum">
+        <div class="bridge">🧠</div>
+        <small>Corpus Callosum</small>
+    </div>
+    
+    <div class="hemisphere right">
+        <h3>🟣 Rechte Hemisphäre</h3>
+        <div class="specialties">
+            <span class="badge">Vision</span>
+            <span class="badge">Audio</span>
+            <span class="badge">Creative</span>
+        </div>
+        <div class="status">
+            Aktiv: <span class="indicator green"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+.brain-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f5f5f5;
+    border-radius: 50px;
+    padding: 20px;
+    margin: 20px 0;
+}
+.hemisphere {
+    flex: 1;
+    padding: 20px;
+    border-radius: 15px;
+    color: white;
+}
+.left { background: #2196F3; }
+.right { background: #9C27B0; }
+.corpus-callosum {
+    width: 100px;
+    text-align: center;
+    color: #666;
+}
+.bridge { font-size: 48px; }
+.badge {
+    background: rgba(255,255,255,0.2);
+    padding: 5px 10px;
+    border-radius: 20px;
+    margin: 2px;
+    display: inline-block;
+}
+</style>
+
 
 <!-- MAIN GRID -->
 <main id="main-grid" class="main-grid">

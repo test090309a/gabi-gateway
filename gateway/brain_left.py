@@ -37,12 +37,14 @@ class LeftHemisphere:
     def _handle_shell(self, data):
         """Shell-Befehle ausführen"""
         from integrations.shell_executor import shell_executor
-        cmd = data.get("command", "")
+        # Unterstütze sowohl "command" als auch "content"
+        cmd = data.get("command") or data.get("content", "")
         return shell_executor.execute(cmd)
     
     def _handle_code(self, data):
         """Code-Generierung und -Analyse"""
-        prompt = data.get("prompt", "")
+        # Unterstütze sowohl "prompt" als auch "content" (für Corpus Callosum)
+        prompt = data.get("prompt") or data.get("content", "")
         # Verwende Code-spezifisches Modell
         from gateway.ollama_client import ollama_client
         response = ollama_client.chat(

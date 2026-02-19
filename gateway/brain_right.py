@@ -96,11 +96,15 @@ class RightHemisphere:
     def _handle_chat(self, data):
         """Normale Konversation"""
         from gateway.ollama_client import ollama_client
-        message = data.get("message", "")
-        context = data.get("context", [])
+
+        # Unterstütze sowohl "message" als auch "content" (für Corpus Callosum)
+        message = data.get("message") or data.get("content", "")
+        context = data.get("context", []) or data.get("hemisphere_history", [])
         
         messages = [{"role": "system", "content": self._get_system_prompt()}]
-        messages.extend(context[-10:])  # Letzte 10 Nachrichten
+        # Kontext aus Corpus Callosum oder globalem Context
+        if isinstance(context, list):
+            messages.extend(context[-10:])  # Letzte 10 Nachrichten
         messages.append({"role": "user", "content": message})
         
         response = ollama_client.chat(

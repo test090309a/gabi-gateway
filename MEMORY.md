@@ -1,29 +1,60 @@
+  **USERPROFILE**: `C:\Users\i2u5h` - 153 Elemente
+    Z.B.: $%§TRWESGFDVXYC, $(npm, -1.14-windows.xml
+  **HOMEDRIVE**: `C:` - 30 Elemente
+    Z.B.: $Recycle.Bin, $Windows.~WS, Dokumente und Einstellungen
+  **HOMEPATH**: `\Users\i2u5h` - (existiert nicht)
+  **ProgramFiles**: `C:\Program Files` - 64 Elemente
+    Z.B.: Adobe, Agisoft, Application Verifier
+  **ProgramFiles(x86)**: `C:\Program Files (x86)` - 37 Elemente
+    Z.B.: Adobe, Application Verifier, ASM106xSATA
+  **CommonProgramFiles**: `C:\Program Files\Common Files` - 7 Elemente
+    Z.B.: Adobe, Autodesk Shared, ChaosGroup
+  **APPDATA**: `C:\Users\i2u5h\AppData\Roaming` - 74 Elemente
+    Z.B.: .cache9050425797200915815.dat, .mamba, 3dat-game-lobby-gg
+  **LOCALAPPDATA**: `C:\Users\i2u5h\AppData\Local` - 115 Elemente
+    Z.B.: .IdentityService, 3dsmax, Adobe
+  **ALLUSERSPROFILE**: `C:\ProgramData` - 48 Elemente
+    Z.B.: Adobe, Anwendungsdaten, Autodesk
+  **SystemRoot**: `C:\WINDOWS` - 114 Elemente
+    Z.B.: appcompat, apppatch, AppReadiness
+  **PUBLIC**: `C:\Users\Public` - 11 Elemente
+    Z.B.: AccountPictures, Adobe, Desktop
+  **OneDrive**: `C:\Users\i2u5h\OneDrive` - 2 Elemente
+    Z.B.: desktop.ini, gurke.txt
+  **PSModulePath**: `C:\Program Files\WindowsPowerShell\Modules;C:\WINDOWS\system32\WindowsPowerShell\v1.0\Modules` - (existiert nicht)
+  **JAVA_HOME**: `M:\java` - (existiert nicht)
+
+### 💾 Verfügbare Laufwerke:
+  • C:\ - 2486.25 GB frei
+  • D:\ - 179.66 GB frei
+  • K:\ - 3.82 GB frei
+  • M:\ - 213.66 GB frei
 
 ### 📂 Wichtige Systemordner:
-  • `C:\Users\i2u5h\AppData\Local`
-    → 108 Ordner, 7 Dateien
-    → Z.B.: .IdentityService, 3dsmax, Adobe
-  • `C:\Program Files (x86)`
-    → 36 Ordner, 1 Dateien
-    → Z.B.: Adobe, Application Verifier, ASM106xSATA
-  • `C:\Users\Public`
-    → 10 Ordner, 1 Dateien
-    → Z.B.: AccountPictures, Adobe, Desktop
-  • `C:\Program Files`
-    → 63 Ordner, 1 Dateien
-    → Z.B.: Adobe, Agisoft, Application Verifier
-  • `C:\Users\i2u5h`
-    → 92 Ordner, 61 Dateien
-    → Z.B.: .aitk, .android, .aria2
   • `C:\WINDOWS`
     → 83 Ordner, 31 Dateien
     → Z.B.: appcompat, apppatch, AppReadiness
-  • `C:\Users\i2u5h\AppData\Local\Temp`
-    → 2442 Ordner, 4364 Dateien
-    → Z.B.: 0048b246-52e9-48da-8dab-773ce6fc1a76, 00koszqd.x55, 00ti503g.fhr
+  • `C:\Program Files (x86)`
+    → 36 Ordner, 1 Dateien
+    → Z.B.: Adobe, Application Verifier, ASM106xSATA
   • `C:\Users\i2u5h\AppData\Roaming`
     → 68 Ordner, 6 Dateien
     → Z.B.: .mamba, 3dat-game-lobby-gg, AdbAppControl
+  • `C:\Users\i2u5h`
+    → 92 Ordner, 61 Dateien
+    → Z.B.: .aitk, .android, .aria2
+  • `C:\Program Files`
+    → 63 Ordner, 1 Dateien
+    → Z.B.: Adobe, Agisoft, Application Verifier
+  • `C:\Users\i2u5h\AppData\Local\Temp`
+    → 2443 Ordner, 4462 Dateien
+    → Z.B.: 0048b246-52e9-48da-8dab-773ce6fc1a76, 00koszqd.x55, 00ti503g.fhr
+  • `C:\Users\i2u5h\AppData\Local`
+    → 108 Ordner, 7 Dateien
+    → Z.B.: .IdentityService, 3dsmax, Adobe
+  • `C:\Users\Public`
+    → 10 Ordner, 1 Dateien
+    → Z.B.: AccountPictures, Adobe, Desktop
 
 ### 🌐 Netzwerk:
 - Aktive Verbindungen: 0
@@ -47,7 +78,7 @@
 - Gesamt Nachrichten: 38
 
 ### 💡 Entdeckung:
-🔍 Ich habe interessante Konfigurationsdateien gefunden.
+🌙 Es ist ruhig im System.
 
     ### 📊 Zusammenfassung:
     - **Untersuchte Pfad-Variablen**: 16
@@ -58,37 +89,33 @@
     - **Verfügbare Modelle**: 71
     - **Gespeicherte Chats**: 6
     
-## 🌙 Schlafphase [2026-02-19 12:27:29]
-- Grund: idle-600s
+## 🌙 Schlafphase [2026-02-19 12:30:40]
+- Grund: idle-1204s
 - Notizen bereinigt: 12 -> 12
-- Memory kompaktiert: ja
+- Memory kompaktiert: nein
 - Interessen aktualisiert: keine
 ---
 
-    ## 🔍 Auto-Exploration [2026-02-19 12:27:29]
+    ## 🔍 Auto-Exploration [2026-02-19 12:30:40]
     GABI hat das System erkundet:
     ### 💻 System:
 
 
 ### 🌍 Umgebungsvariablen & Pfade:
   **PATH** (mehrere Pfade):
-    2. `d:\toolz` - 130 Elemente
+    3. `C:\Program Files\Git\mingw64\bin` - 157 Elemente
+       Z.B.: adig.exe, ahost.exe, antiword.exe
+    5. `C:\Program Files\Git\usr\bin` - 378 Elemente
+       Z.B.: addgnupghome, applygnupgdefaults, arch.exe
+    6. `C:\Program Files\Git\usr\bin` - 378 Elemente
+       Z.B.: addgnupghome, applygnupgdefaults, arch.exe
+    7. `C:\Program Files\Git\mingw64\bin` - 157 Elemente
+       Z.B.: adig.exe, ahost.exe, antiword.exe
+    8. `C:\Program Files\Git\usr\bin` - 378 Elemente
+       Z.B.: addgnupghome, applygnupgdefaults, arch.exe
+    10. `D:\toolz` - 130 Elemente
        Z.B.: 01hacking-toolz, 7-Zip, aria2
-    3. `C:\Program Files (x86)\Common Files\Oracle\Java\java8path` - 3 Elemente
-       Z.B.: java.exe, javaw.exe, javaws.exe
-    5. `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin\x64` - 27 Elemente
-       Z.B.: cublas64_13.dll, cublasLt64_13.dll, cudart64_13.dll
-    6. `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin` - 109 Elemente
-       Z.B.: bin2c.exe, compute-sanitizer.bat, crt
-    7. `M:\Python312\Scripts\` - 288 Elemente
-       Z.B.: .webui_secret_key, accelerate-config.exe, accelerate-estimate-memory.exe
-    8. `M:\Python312\` - 41 Elemente
-       Z.B.: concrt140.dll, COPYING, DLLs
-    9. `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin` - 18 Elemente
-       Z.B.: compute-sanitizer.bat, cuinj64_126.dll, nvdisasm.exe
-    10. `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\libnvvp` - 12 Elemente
-       Z.B.: .eclipseproduct, artifacts.xml, configuration
-    → Insgesamt 83 Pfade in PATH
+    → Insgesamt 92 Pfade in PATH
   **TEMP**: `C:\Users\i2u5h\AppData\Local\Temp` - 6904 Elemente
     Z.B.: .789527d3166fffee-00000000.node, .789527d33beffeae-00000000.node, .789527d33bfe3afe-00000000.node
   **USERPROFILE**: `C:\Users\i2u5h` - 153 Elemente
@@ -124,30 +151,30 @@
   • M:\ - 213.65 GB frei
 
 ### 📂 Wichtige Systemordner:
-  • `C:\Program Files (x86)`
-    → 36 Ordner, 1 Dateien
-    → Z.B.: Adobe, Application Verifier, ASM106xSATA
-  • `C:\Program Files`
-    → 63 Ordner, 1 Dateien
-    → Z.B.: Adobe, Agisoft, Application Verifier
-  • `C:\Users\i2u5h\AppData\Local`
-    → 108 Ordner, 7 Dateien
-    → Z.B.: .IdentityService, 3dsmax, Adobe
-  • `C:\Users\i2u5h\AppData\Local\Temp`
-    → 2443 Ordner, 4461 Dateien
-    → Z.B.: 0048b246-52e9-48da-8dab-773ce6fc1a76, 00koszqd.x55, 00ti503g.fhr
-  • `C:\Users\i2u5h`
-    → 92 Ordner, 61 Dateien
-    → Z.B.: .aitk, .android, .aria2
-  • `C:\Users\i2u5h\AppData\Roaming`
-    → 68 Ordner, 6 Dateien
-    → Z.B.: .mamba, 3dat-game-lobby-gg, AdbAppControl
-  • `C:\Users\Public`
-    → 10 Ordner, 1 Dateien
-    → Z.B.: AccountPictures, Adobe, Desktop
   • `C:\WINDOWS`
     → 83 Ordner, 31 Dateien
     → Z.B.: appcompat, apppatch, AppReadiness
+  • `C:\Program Files (x86)`
+    → 36 Ordner, 1 Dateien
+    → Z.B.: Adobe, Application Verifier, ASM106xSATA
+  • `C:\Users\i2u5h\AppData\Roaming`
+    → 68 Ordner, 6 Dateien
+    → Z.B.: .mamba, 3dat-game-lobby-gg, AdbAppControl
+  • `C:\Users\i2u5h`
+    → 92 Ordner, 61 Dateien
+    → Z.B.: .aitk, .android, .aria2
+  • `C:\Program Files`
+    → 63 Ordner, 1 Dateien
+    → Z.B.: Adobe, Agisoft, Application Verifier
+  • `C:\Users\i2u5h\AppData\Local\Temp`
+    → 2443 Ordner, 4461 Dateien
+    → Z.B.: 0048b246-52e9-48da-8dab-773ce6fc1a76, 00koszqd.x55, 00ti503g.fhr
+  • `C:\Users\i2u5h\AppData\Local`
+    → 108 Ordner, 7 Dateien
+    → Z.B.: .IdentityService, 3dsmax, Adobe
+  • `C:\Users\Public`
+    → 10 Ordner, 1 Dateien
+    → Z.B.: AccountPictures, Adobe, Desktop
 
 ### 🌐 Netzwerk:
 - Aktive Verbindungen: 0
@@ -171,7 +198,7 @@
 - Gesamt Nachrichten: 38
 
 ### 💡 Entdeckung:
-🔧 Alle wichtigen Systempfade sind erreichbar.
+📊 Die Systemauslastung scheint normal.
 
     ### 📊 Zusammenfassung:
     - **Untersuchte Pfad-Variablen**: 16
@@ -182,37 +209,33 @@
     - **Verfügbare Modelle**: 71
     - **Gespeicherte Chats**: 6
     
-## 🌙 Schlafphase [2026-02-19 12:32:32]
-- Grund: idle-902s
+## 🌙 Schlafphase [2026-02-19 12:35:42]
+- Grund: idle-1507s
 - Notizen bereinigt: 12 -> 12
 - Memory kompaktiert: ja
 - Interessen aktualisiert: keine
 ---
 
-    ## 🔍 Auto-Exploration [2026-02-19 12:32:32]
+    ## 🔍 Auto-Exploration [2026-02-19 12:35:42]
     GABI hat das System erkundet:
     ### 💻 System:
 
 
 ### 🌍 Umgebungsvariablen & Pfade:
   **PATH** (mehrere Pfade):
-    2. `d:\toolz` - 130 Elemente
+    3. `C:\Program Files\Git\mingw64\bin` - 157 Elemente
+       Z.B.: adig.exe, ahost.exe, antiword.exe
+    5. `C:\Program Files\Git\usr\bin` - 378 Elemente
+       Z.B.: addgnupghome, applygnupgdefaults, arch.exe
+    6. `C:\Program Files\Git\usr\bin` - 378 Elemente
+       Z.B.: addgnupghome, applygnupgdefaults, arch.exe
+    7. `C:\Program Files\Git\mingw64\bin` - 157 Elemente
+       Z.B.: adig.exe, ahost.exe, antiword.exe
+    8. `C:\Program Files\Git\usr\bin` - 378 Elemente
+       Z.B.: addgnupghome, applygnupgdefaults, arch.exe
+    10. `D:\toolz` - 130 Elemente
        Z.B.: 01hacking-toolz, 7-Zip, aria2
-    3. `C:\Program Files (x86)\Common Files\Oracle\Java\java8path` - 3 Elemente
-       Z.B.: java.exe, javaw.exe, javaws.exe
-    5. `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin\x64` - 27 Elemente
-       Z.B.: cublas64_13.dll, cublasLt64_13.dll, cudart64_13.dll
-    6. `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin` - 109 Elemente
-       Z.B.: bin2c.exe, compute-sanitizer.bat, crt
-    7. `M:\Python312\Scripts\` - 288 Elemente
-       Z.B.: .webui_secret_key, accelerate-config.exe, accelerate-estimate-memory.exe
-    8. `M:\Python312\` - 41 Elemente
-       Z.B.: concrt140.dll, COPYING, DLLs
-    9. `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin` - 18 Elemente
-       Z.B.: compute-sanitizer.bat, cuinj64_126.dll, nvdisasm.exe
-    10. `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\libnvvp` - 12 Elemente
-       Z.B.: .eclipseproduct, artifacts.xml, configuration
-    → Insgesamt 83 Pfade in PATH
+    → Insgesamt 92 Pfade in PATH
   **TEMP**: `C:\Users\i2u5h\AppData\Local\Temp` - 6904 Elemente
     Z.B.: .789527d3166fffee-00000000.node, .789527d33beffeae-00000000.node, .789527d33bfe3afe-00000000.node
   **USERPROFILE**: `C:\Users\i2u5h` - 153 Elemente
@@ -242,36 +265,36 @@
   **JAVA_HOME**: `M:\java` - (existiert nicht)
 
 ### 💾 Verfügbare Laufwerke:
-  • C:\ - 2486.22 GB frei
+  • C:\ - 2486.23 GB frei
   • D:\ - 179.66 GB frei
   • K:\ - 3.82 GB frei
   • M:\ - 213.65 GB frei
 
 ### 📂 Wichtige Systemordner:
-  • `C:\Program Files (x86)`
-    → 36 Ordner, 1 Dateien
-    → Z.B.: Adobe, Application Verifier, ASM106xSATA
-  • `C:\Program Files`
-    → 63 Ordner, 1 Dateien
-    → Z.B.: Adobe, Agisoft, Application Verifier
-  • `C:\Users\i2u5h\AppData\Local`
-    → 108 Ordner, 7 Dateien
-    → Z.B.: .IdentityService, 3dsmax, Adobe
-  • `C:\Users\i2u5h\AppData\Local\Temp`
-    → 2443 Ordner, 4461 Dateien
-    → Z.B.: 0048b246-52e9-48da-8dab-773ce6fc1a76, 00koszqd.x55, 00ti503g.fhr
-  • `C:\Users\i2u5h`
-    → 92 Ordner, 61 Dateien
-    → Z.B.: .aitk, .android, .aria2
-  • `C:\Users\i2u5h\AppData\Roaming`
-    → 68 Ordner, 6 Dateien
-    → Z.B.: .mamba, 3dat-game-lobby-gg, AdbAppControl
-  • `C:\Users\Public`
-    → 10 Ordner, 1 Dateien
-    → Z.B.: AccountPictures, Adobe, Desktop
   • `C:\WINDOWS`
     → 83 Ordner, 31 Dateien
     → Z.B.: appcompat, apppatch, AppReadiness
+  • `C:\Program Files (x86)`
+    → 36 Ordner, 1 Dateien
+    → Z.B.: Adobe, Application Verifier, ASM106xSATA
+  • `C:\Users\i2u5h\AppData\Roaming`
+    → 68 Ordner, 6 Dateien
+    → Z.B.: .mamba, 3dat-game-lobby-gg, AdbAppControl
+  • `C:\Users\i2u5h`
+    → 92 Ordner, 61 Dateien
+    → Z.B.: .aitk, .android, .aria2
+  • `C:\Program Files`
+    → 63 Ordner, 1 Dateien
+    → Z.B.: Adobe, Agisoft, Application Verifier
+  • `C:\Users\i2u5h\AppData\Local\Temp`
+    → 2443 Ordner, 4461 Dateien
+    → Z.B.: 0048b246-52e9-48da-8dab-773ce6fc1a76, 00koszqd.x55, 00ti503g.fhr
+  • `C:\Users\i2u5h\AppData\Local`
+    → 108 Ordner, 7 Dateien
+    → Z.B.: .IdentityService, 3dsmax, Adobe
+  • `C:\Users\Public`
+    → 10 Ordner, 1 Dateien
+    → Z.B.: AccountPictures, Adobe, Desktop
 
 ### 🌐 Netzwerk:
 - Aktive Verbindungen: 0
@@ -295,7 +318,7 @@
 - Gesamt Nachrichten: 38
 
 ### 💡 Entdeckung:
-🔄 Einige Hintergrundprozesse sind aktiv.
+⚡ Die Systemleistung ist gut.
 
     ### 📊 Zusammenfassung:
     - **Untersuchte Pfad-Variablen**: 16

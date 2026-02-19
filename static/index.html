@@ -2750,6 +2750,13 @@ Memory Statistiken:
             addThinkingStepToChat(`Datei-Drop erkannt (${files.length})`, 'fa-upload');
             await handleFileUpload(files);
         });
+
+        // Autofocus auf Input bei Klick auf Chat-Bereich
+        chatSection.addEventListener('click', () => {
+            if (chatInput) {
+                chatInput.focus();
+            }
+        });
     }
 
     shellLine.addEventListener('keydown', (e) => {

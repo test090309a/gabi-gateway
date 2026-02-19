@@ -111,7 +111,7 @@ class RightHemisphere:
             model=self.active_model,
             messages=messages
         )
-        return {"response": response}
+        return {"reply": response, "response": response}
     
     def _handle_creative(self, data):
         """Kreative Aufgaben: Gedichte, Geschichten, Ideen"""

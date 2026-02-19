@@ -1,0 +1,48 @@
+{
+  "id": "20260219_112451",
+  "start_time": "2026-02-19 11:20",
+  "end_time": "2026-02-19T11:24:51.614841",
+  "messages": [
+    {
+      "role": "user",
+      "content": "sdf",
+      "timestamp": "2026-02-19 11:20"
+    },
+    {
+      "role": "assistant",
+      "content": "```\nGABI: HALLO! Ich bin ALEXANDRA hier. Wie kann ich dich unterstützen?\n\nWenn du eine Datei, einen Systemstatus oder einen Befehl brauchst, benutze einfach `/shell <befehl>`.\n\nZum Beispiel:\n- `/shell dir` zeigt den Inhalt eines Verzeichnisses an.\n- `/shell tasklist` listet laufende Prozesse auf.\n\nWas möchtest du genau tun?  \nOder hast du eine spezifische Anfrage?  \nIch bin bereit, sofort weiterzumachen!  \n```",
+      "timestamp": "2026-02-19 11:20"
+    },
+    {
+      "role": "user",
+      "content": "Schreibe ein Python-Skript das Fibonacci berechnet",
+      "timestamp": "2026-02-19 11:22"
+    },
+    {
+      "role": "assistant",
+      "content": "```\n# Python-Skript zur Berechnung der Fibonacci-Folge\n\ndef fibonacci(n):\n    a, b = 0, 1\n    sequence = []\n    for _ in range(n):\n        sequence.append(a)\n        a, b = b, a + b\n    return sequence\n\n# Benutzereingabe\nn = int(input(\"Gib die Anzahl der Fibonacci-Zahlen ein: \"))\nprint(f\"Fibonacci-Folge der ersten {n} Zahlen: {fibonacci(n)}\")\n```",
+      "timestamp": "2026-02-19 11:22"
+    },
+    {
+      "role": "user",
+      "content": "hey",
+      "timestamp": "2026-02-19 11:24"
+    },
+    {
+      "role": "assistant",
+      "content": "```\nGABI: HALLO! Ich bin ALEXANDRA hier. Was möchtest du tun?\n\nDu fragst nach einem Python-Skript zur Fibonacci-Berechnung? Hier ist es:\n\n# Python-Skript zur Berechnung der Fibonacci-Folge\n\ndef fibonacci(n):\n    a, b = 0, 1\n    sequence = []\n    for _ in range(n):\n        sequence.append(a)\n        a, b = b, a + b\n    return sequence\n\n# Benutzereingabe\nn = int(input(\"Gib die Anzahl der Fibonacci-Zahlen ein: \"))\nprint(f\"Fibonacci-Folge der ersten {n} Zahlen: {fibonacci(n)}\")\n```",
+      "timestamp": "2026-02-19 11:24"
+    }
+  ],
+  "message_count": 6,
+  "user_interests": {
+    "allgemein": 2,
+    "python": 1
+  },
+  "preferences": {
+    "positive_feedback": 0,
+    "negative_feedback": 0,
+    "message_length": "kurz",
+    "active_time": "morgens"
+  }
+}

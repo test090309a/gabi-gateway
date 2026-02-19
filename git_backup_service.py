@@ -29,6 +29,30 @@ AUTO_PUSH = True     # Auto-Push Standard
 from auto_git_backup import GitBackup, logger
 
 
+class TkinterApp:
+    """Singleton für Tkinter Hauptfenster"""
+    _instance = None
+    _root = None
+    
+    @classmethod
+    def get_root(cls):
+        """Gibt das Tkinter-Hauptfenster zurück (erstellt es falls nötig)"""
+        if cls._root is None:
+            cls._root = tk.Tk()
+            cls._root.withdraw()  # Hauptfenster verstecken
+        return cls._root
+    
+    @classmethod
+    def destroy(cls):
+        """Zerstört das Tkinter-Hauptfenster"""
+        if cls._root is not None:
+            try:
+                cls._root.destroy()
+            except:
+                pass
+            cls._root = None
+
+
 class LogWindow:
     """Separates Log-Fenster mit korrektem Schließen"""
     
@@ -39,18 +63,20 @@ class LogWindow:
         self.update_job = None
     
     def show(self):
-        """Zeigt das Log-Fenster an"""
+        """Zeigt das Log-Fenster an (MUSS im Haupt-Thread aufgerufen werden!)"""
         if self.window is not None:
             try:
-                # Prüfe ob Fenster noch existiert
                 self.window.lift()
                 self.window.focus_force()
                 return
             except:
                 self.window = None
         
+        # Tkinter im Haupt-Thread verwenden
+        root = TkinterApp.get_root()
+        
         # Neues Fenster erstellen
-        self.window = tk.Toplevel()
+        self.window = tk.Toplevel(root)
         self.window.title("📝 GABI Git Backup Log")
         self.window.geometry("700x500")
         self.window.protocol("WM_DELETE_WINDOW", self.close)
@@ -191,7 +217,7 @@ class StatusWindow:
         self.window = None
     
     def show(self):
-        """Zeigt Status-Fenster an"""
+        """Zeigt Status-Fenster an (MUSS im Haupt-Thread aufgerufen werden!)"""
         if self.window is not None:
             try:
                 self.window.lift()
@@ -200,8 +226,11 @@ class StatusWindow:
             except:
                 self.window = None
         
+        # Tkinter im Haupt-Thread verwenden
+        root = TkinterApp.get_root()
+        
         # Neues Fenster erstellen
-        self.window = tk.Toplevel()
+        self.window = tk.Toplevel(root)
         self.window.title("📊 GABI Git Status")
         self.window.geometry("500x400")
         self.window.resizable(False, False)
@@ -263,7 +292,6 @@ class StatusWindow:
             branch = self.git._run_git_command(["branch", "--show-current"])
             branch_text = branch.stdout.strip() if branch.stdout else "unknown"
             
-            # Hier KEIN global - nur lesender Zugriff auf die Variablen
             return f"""
 📁 Projekt: {self.git.repo_path}
 🌿 Branch: {branch_text}
@@ -346,21 +374,22 @@ class GitBackupTray:
         )
     
     def show_status(self, icon=None, item=None):
-        """Zeigt Status-Fenster"""
-        # In eigenem Thread ausführen um Tkinter nicht zu blockieren
-        def show():
+        """Zeigt Status-Fenster - mit Queue für Haupt-Thread"""
+        def show_in_main():
             if self.status_window is None:
                 self.status_window = StatusWindow(self.git)
             self.status_window.show()
         
-        threading.Thread(target=show, daemon=True).start()
+        # Im Haupt-Thread ausführen via after()
+        TkinterApp.get_root().after(0, show_in_main)
     
     def show_log(self, icon=None, item=None):
-        """Zeigt Log-Fenster"""
-        def show():
+        """Zeigt Log-Fenster - mit Queue für Haupt-Thread"""
+        def show_in_main():
             self.log_window.show()
         
-        threading.Thread(target=show, daemon=True).start()
+        # Im Haupt-Thread ausführen via after()
+        TkinterApp.get_root().after(0, show_in_main)
     
     def manual_backup(self, icon=None, item=None):
         """Führt manuelles Backup aus"""
@@ -401,8 +430,8 @@ class GitBackupTray:
     def change_interval(self, icon=None, item=None):
         """Öffnet Dialog zum Ändern des Intervalls"""
         def dialog():
+            global CHECK_INTERVAL
             import tkinter.simpledialog
-            global CHECK_INTERVAL  # ← global GANZ AM ANFANG der Funktion!
             
             new_val = tkinter.simpledialog.askinteger(
                 "Intervall ändern",
@@ -419,20 +448,24 @@ class GitBackupTray:
                     "GABI Git Backup"
                 )
         
-        threading.Thread(target=dialog, daemon=True).start()
+        # Dialog im Haupt-Thread via after()
+        TkinterApp.get_root().after(0, dialog)
     
     def stop(self, icon=None, item=None):
         """Beendet den Service"""
         self.git.stop_watching()
         self.running = False
         
-        # Log-Fenster schließen
+        # Log-Fenster schließen (im Haupt-Thread)
         if self.log_window:
-            self.log_window.close()
+            TkinterApp.get_root().after(0, self.log_window.close)
         
-        # Status-Fenster schließen
+        # Status-Fenster schließen (im Haupt-Thread)
         if self.status_window:
-            self.status_window.close()
+            TkinterApp.get_root().after(0, self.status_window.close)
+        
+        # Tkinter aufräumen
+        TkinterApp.destroy()
         
         # Tray-Icon stoppen
         self.icon.stop()
@@ -442,8 +475,14 @@ class GitBackupTray:
         # Watchdog starten
         self.git.start_watching()
         
-        # Tray-Icon starten
-        self.icon.run()
+        # Tkinter Hauptschleife starten (im Haupt-Thread)
+        root = TkinterApp.get_root()
+        
+        # Tray-Icon in eigenem Thread starten
+        threading.Thread(target=self.icon.run, daemon=True).start()
+        
+        # Tkinter Hauptschleife
+        root.mainloop()
 
 
 if __name__ == "__main__":

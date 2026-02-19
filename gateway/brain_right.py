@@ -111,7 +111,7 @@ class RightHemisphere:
             model=self.active_model,
             messages=messages
         )
-        return {"reply": response, "response": response}
+        return {"reply": response, "response": response, "success": True}
     
     def _handle_creative(self, data):
         """Kreative Aufgaben: Gedichte, Geschichten, Ideen"""
@@ -126,7 +126,7 @@ class RightHemisphere:
             model="llama3.2",  # Allgemeines Modell
             messages=[{"role": "user", "content": creative_prompt}]
         )
-        return {"reply": response, "response": response}
+        return {"reply": response, "response": response, "success": True}
     
     def _get_system_prompt(self):
         """Holt den System-Prompt aus dem Memory"""

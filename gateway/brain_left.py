@@ -39,7 +39,18 @@ class LeftHemisphere:
         from integrations.shell_executor import shell_executor
         # Unterstütze sowohl "command" als auch "content"
         cmd = data.get("command") or data.get("content", "")
-        return shell_executor.execute(cmd)
+        result = shell_executor.execute(cmd)
+        # Erstelle reply aus stdout/stderr
+        if result.get("success"):
+            reply = result.get("stdout", "") or "Befehl ausgeführt"
+        else:
+            reply = f"Fehler: {result.get('stderr', result.get('stdout', 'Unbekannt'))}"
+        return {
+            "reply": reply,
+            "stdout": result.get("stdout", ""),
+            "stderr": result.get("stderr", ""),
+            "success": result.get("success", True)
+        }
     
     def _handle_code(self, data):
         """Code-Generierung und -Analyse"""
@@ -51,7 +62,7 @@ class LeftHemisphere:
             model="codellama",  # Speziell für Code
             messages=[{"role": "user", "content": prompt}]
         )
-        return {"result": response}
+        return {"reply": response, "response": response}
     
     def _handle_analysis(self, data):
         """System-Analyse"""

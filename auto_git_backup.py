@@ -337,17 +337,18 @@ class GitBackup:
     def push(self):
         """Pusht die Commits zu GitHub"""
         logger.info("📤 Pushe zu GitHub...")
-        result = self._run_git_command(["push", "origin", "main"])
+        
+        # Aktuellen Branch herausfinden
+        branch_result = self._run_git_command(["branch", "--show-current"])
+        current_branch = branch_result.stdout.strip() if branch_result.stdout else "main"
+        
+        # Push mit aktuellem Branch
+        result = self._run_git_command(["push", "-u", "origin", current_branch])
         
         if result.returncode == 0:
-            logger.info("✅ Erfolgreich gepusht")
+            logger.info(f"✅ Erfolgreich zu '{current_branch}' gepusht")
         else:
-            # Vielleicht heißt der Branch "master" statt "main"
-            result = self._run_git_command(["push", "origin", "master"])
-            if result.returncode == 0:
-                logger.info("✅ Erfolgreich zu 'master' gepusht")
-            else:
-                logger.warning("⚠️ Push fehlgeschlagen - vielleicht Branch-Name falsch?")
+            logger.warning(f"⚠️ Push fehlgeschlagen: {result.stderr}")
     
     def start_watching(self):
         """Startet den Watchdog-Thread"""

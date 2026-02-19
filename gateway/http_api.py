@@ -2602,10 +2602,30 @@ async def chat_with_gabi(request: ChatRequest, token: str = Header(None)):
         routing_result = brain.route_task(task)
         hemisphere = routing_result.get("hemisphere", "bridge")
         detected_type = routing_result.get("detected_type", "chat")
-        
-        _progress_add(request_id, f"Corpus Callosum: Routing zu {hemisphere} Hemisphäre (Typ: {detected_type})", 
+
+        _progress_add(request_id, f"Corpus Callosum: Routing zu {hemisphere} Hemisphäre (Typ: {detected_type})",
                       "fa-code-branch" if hemisphere == "left" else "fa-paint-brush")
-        
+
+        # === PRÜFE OB DAS BRAIN BEREITS EINE ANTWORT HAT ===
+        brain_reply = routing_result.get("reply") or routing_result.get("response") or routing_result.get("result")
+        brain_success = routing_result.get("success", True)
+        if brain_reply and brain_success:
+            # Brain hat bereits geantwortet - verwende dieses Ergebnis
+            chat_memory.add_to_memory(user_message, str(brain_reply))
+            return {
+                "status": "success",
+                "reply": str(brain_reply),
+                "timestamp": datetime.now().isoformat(),
+                "hemisphere": hemisphere,
+                "hemisphere_type": "analytical" if hemisphere == "left" else "creative",
+                "task_type": detected_type,
+                "model_used": routing_result.get("model_used", "brain"),
+                "request_id": request_id,
+            }
+        elif not brain_success:
+            # Brain konnte nicht verarbeiten - fallback auf normale Verarbeitung
+            logger.info(f"Brain konnte nicht verarbeiten: {routing_result.get('error', 'unbekannt')}")
+
         # ===== 4. DEFINITION DER SUCH-TRIGGER (für rechte Hemisphäre) =====
         search_triggers = [
             "suche nach", "such nach", "finde heraus", "recherchiere",

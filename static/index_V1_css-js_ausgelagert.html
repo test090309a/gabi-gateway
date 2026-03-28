@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>GABI Gateway – Modern Dashboard v2.0</title>
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23ff2a2a'/%3E%3Ctext x='50' y='75' font-size='70' text-anchor='middle' fill='white' font-family='Arial'%3EG%3C/text%3E%3C/svg%3E">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Markdown Renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="border-b border-[var(--border)] bg-[var(--bg-secondary)] sticky top-0 z-50">
+    <div class="px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-[var(--accent)] rounded-lg flex items-center justify-center">
+                <i class="fas fa-robot text-black text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-[var(--accent)]">GABI Gateway</h1>
+                <p class="text-xs text-[var(--text-muted)]">Modern Dashboard v2.0</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <select id="model-selector" class="model-select"></select>
+            <div id="llm-status" class="text-xs"><span class="status-badge status-offline">Prüfe...</span></div>
+        </div>
+    </div>
+    
+    <!-- TOOLBAR -->
+    <div class="border-b border-[var(--border)] px-4 py-2 flex flex-wrap gap-2 items-center justify-between">
+        <div class="flex gap-2 flex-wrap">
+            <button class="btn btn-sm" data-panel="tools"><i class="fas fa-tools"></i> Tools</button>
+            <button class="btn btn-sm" data-panel="mails"><i class="fas fa-envelope"></i> Mails</button>
+            <button class="btn btn-sm" data-panel="gui"><i class="fas fa-desktop"></i> Desktop</button>
+            <button class="btn btn-sm" data-panel="comfy"><i class="fas fa-palette"></i> ComfyUI</button>
+            <button class="btn btn-sm" id="help-btn"><i class="fas fa-question-circle"></i> Hilfe</button>
+        </div>
+        <div class="text-xs text-[var(--text-muted)]"><i class="far fa-clock"></i> <span id="current-time"></span></div>
+    </div>
+</header>
+
+<!-- MAIN CHAT AREA -->
+<main class="h-[calc(100vh-110px)] overflow-hidden flex flex-col">
+    <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4">
+        <div class="text-[var(--text-muted)] italic text-sm flex items-center gap-2">
+            <i class="fas fa-info-circle"></i> GABI Gateway bereit. <strong class="text-[var(--accent)]">/help</strong> für alle Befehle.<br>
+            <span class="text-xs">⌨️ Pfeiltasten ↑↓ für Befehlshistorie | @ für Datei-Vorschläge</span>
+        </div>
+    </div>
+    
+    <!-- INPUT AREA -->
+    <div class="p-4 border-t border-[var(--border)] bg-[var(--bg-secondary)]">
+        <div class="relative flex gap-2 items-end">
+            <textarea id="chat-input" rows="2" placeholder="Nachricht eingeben... (Enter = senden, Shift+Enter = neue Zeile, ↑↓ für Verlauf, @ für Dateien)" 
+                      class="chat-input"></textarea>
+            <div id="file-suggest" class="hidden"></div>
+            <button id="send-btn" class="send-btn"><i class="fas fa-paper-plane"></i> Senden</button>
+            <button id="stop-btn" class="btn" disabled><i class="fas fa-stop"></i> Stop</button>
+        </div>
+        <div class="text-xs text-[var(--text-muted)] mt-2 flex gap-4">
+            <span><i class="fas fa-microphone"></i> Whisper: Audio-Datei hochladen</span>
+            <span><i class="fas fa-paperclip"></i> Datei per Drag & Drop oder @Pfad</span>
+        </div>
+    </div>
+</main>
+
+<!-- DYNAMIC PANEL OVERLAY -->
+<div id="panel-overlay" class="panel-overlay">
+    <div class="panel-content">
+        <div class="flex-between p-4 border-b border-[var(--border)]">
+            <h3 id="panel-title" class="text-xl font-semibold text-[var(--accent)]"><i class="fas fa-cog"></i> Panel</h3>
+            <button id="close-panel" class="text-2xl hover:text-[var(--accent)]">&times;</button>
+        </div>
+        <div id="panel-body" class="p-4 overflow-auto max-h-[calc(85vh-80px)]"></div>
+    </div>
+</div>
+
+<!-- HELP MODAL -->
+<div id="help-modal" class="panel-overlay" style="z-index: 1100;">
+    <div class="panel-content max-w-3xl">
+        <div class="flex-between p-4 border-b border-[var(--border])">
+            <h3 class="text-xl font-semibold text-[var(--accent)]"><i class="fas fa-question-circle"></i> GABI Gateway Hilfe</h3>
+            <button id="close-help" class="text-2xl hover:text-[var(--accent])">&times;</button>
+        </div>
+        <div id="help-body" class="p-4 overflow-auto max-h-[70vh] space-y-4 text-[var(--text-secondary)]"></div>
+    </div>
+</div>
+
+<script type="module" src="static/js/app.js"></script>
+</body>
+</html>

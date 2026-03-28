@@ -1,0 +1,323 @@
+🎯 GG GABI Gateway - Bedienungsanleitung
+📋 Inhaltsverzeichnis
+Erste Schritte
+
+Sprachbefehle (Natürliche Sprache)
+
+Shell-Befehle
+
+GUI-Controller
+
+Datei-Operationen
+
+System-Operationen
+
+Vision & Webcam
+
+ComfyUI Bildgenerierung
+
+Telegram Integration
+
+Gmail & Calendar
+
+Memory & Soul
+
+Modelle verwalten
+
+🚀 Erste Schritte
+Starten des Gateways
+bash
+python main.py
+Zugriff
+Web-Oberfläche: http://localhost:8000
+
+API-Docs: http://localhost:8000/docs
+
+API-Key: sysop (in config.yaml einstellbar)
+
+💬 Sprachbefehle (Natürliche Sprache)
+GABI versteht natürliche Sprache und führt automatisch die richtigen Aktionen aus:
+
+Programme öffnen
+text
+öffne notepad
+starte chrome
+öffne rechner
+starte terminal
+öffne vs code
+Screenshot
+text
+mach screenshot
+erstelle einen screenshot
+take screenshot
+URLs öffnen
+text
+öffne google.com
+gehe zu github.com
+goto https://chat.openai.com
+Dateien anzeigen
+text
+zeig mir alle python dateien
+zeig mir alle text dateien
+zeig mir alle json dateien
+zeig mir alle markdown dateien
+zeig mir alle bilder
+liste alle dateien
+welche dateien gibt es hier
+Prozesse anzeigen
+text
+zeig mir alle prozesse
+was läuft gerade
+zeig mir systemprozesse
+Systeminformationen
+text
+zeig mir systeminfo
+wie viel speicher ist frei
+cpu auslastung
+zeig mir netzwerk
+wo bin ich
+Datei-Operationen
+text
+erstelle datei test.txt
+erstelle datei test.txt mit inhalt "Hallo Welt"
+lösche datei test.txt
+kopiere datei test.txt nach backup/
+verschiebe datei test.txt nach archive/
+Ordner-Operationen
+text
+erstelle ordner mein_ordner
+lösche ordner alter_ordner
+Suche
+text
+suche in dateien nach "password"
+suche nach config dateien
+Prozess beenden
+text
+beende prozess notepad.exe
+kill prozess firefox
+🖥️ Shell-Befehle
+Für komplexere Operationen kannst du direkt Shell-Befehle verwenden:
+
+Windows
+text
+/shell dir
+/shell dir *.py
+/shell dir /s
+/shell ipconfig /all
+/shell systeminfo
+/shell tasklist
+/shell taskkill /F /IM notepad.exe
+/shell echo "Hallo" > test.txt
+/shell type test.txt
+/shell del test.txt
+Linux/macOS
+text
+/shell ls -la
+/shell ls *.py
+/shell ps aux
+/shell killall firefox
+/shell echo "Hallo" > test.txt
+/shell cat test.txt
+/shell rm test.txt
+/shell df -h
+/shell free -h
+/shell ifconfig
+Android (Termux)
+text
+/shell ls -la
+/shell ps
+/shell pm list packages
+/shell dumpsys battery
+/shell df -h
+/shell am start -n com.android.chrome/com.google.android.apps.chrome.Main
+Pipes & Redirection
+text
+/shell dir | findstr ".py"
+/shell echo "Zeile 1" > test.txt && echo "Zeile 2" >> test.txt
+/shell type test.txt | findstr "Zeile"
+🎮 GUI-Controller
+Steuerung der Desktop-Oberfläche:
+
+Programme öffnen
+text
+/gui open chrome
+/gui open notepad
+/gui open explorer
+/gui open calculator
+/gui open powershell
+Maussteuerung
+text
+/gui click 500 300
+/gui click 500 300 --button right
+/gui double-click 500 300
+Tastatur
+text
+/gui type "Hallo Welt"
+/gui press enter
+/gui press tab
+/gui press ctrl c
+/gui hotkey ctrl l
+Fenster
+text
+/gui windows          # Alle offenen Fenster anzeigen
+/gui screenshot       # Screenshot machen
+/gui goto google.com  # URL im Browser öffnen
+📁 Datei-Operationen
+Anzeigen
+text
+/memory          # Letzte Erinnerungen
+/archives        # Chat-Archive anzeigen
+/status          # System-Status
+Speichern & Laden
+text
+/merken [inhalt]           # Notiz speichern
+/gemerkt                   # Gespeicherte Notizen anzeigen
+/new                       # Neuen Chat starten (archiviert aktuellen)
+/reset                     # Chat zurücksetzen (ohne Archivierung)
+/load [id]                 # Archiv laden
+🔧 System-Operationen
+text
+/status                    # System-Status anzeigen
+/explore                   # Auto-Exploration Status
+/explore now               # Sofortige System-Exploration
+/sleep                     # Memory sortieren/kompaktieren
+/calendar                  # Nächste Kalendertermine
+/calendar 20               # Mehr Termine anzeigen
+👁️ Vision & Webcam
+Webcam
+text
+/webcam                    # Foto aufnehmen
+/webcam detect             # Objekterkennung
+/webcam detect stream      # Kontinuierliche Erkennung
+/webcam detect stop        # Stream stoppen
+/webcam status             # Webcam-Status
+Bildanalyse
+text
+/vision [pfad]             # Bild analysieren
+/vision screenshots/webcam/webcam_xxx.png
+🎨 ComfyUI Bildgenerierung
+text
+/comfy status              # ComfyUI Status prüfen
+/comfy scan                # ComfyUI suchen
+/comfy generate [prompt]   # Bild generieren
+
+# Beispiele:
+/comfy generate a cute cat sitting on a cloud
+/comfy generate cyberpunk city, neon lights --width 1024 --height 768
+/comfy generate beautiful landscape --steps 30
+/comfy generate detailed portrait of a wizard --width 768 --height 1024 --steps 25
+📱 Telegram Integration
+Admin-Befehle
+text
+/telegram status           # Bot-Status
+/telegram users            # Aktive Benutzer
+/telegram send [nachricht] # Nachricht an alle
+/telegram send --to @channel [nachricht] # An spezifischen Kanal
+Benutzer-Befehle (im Bot)
+text
+/start                     # Bot starten
+/help                      # Hilfe
+/clear                     # Verlauf löschen
+/model                     # Aktuelles Modell
+/model liste               # Modelle anzeigen
+/model [name]              # Modell wechseln
+📧 Gmail & Calendar
+Gmail
+text
+/gmail list                # Letzte 10 E-Mails
+/gmail get [id]            # Bestimmte E-Mail
+/gmail reply [id] [text]   # Antwort senden
+/gmail help                # Hilfe
+Calendar
+text
+/calendar                  # Nächste Termine
+/calendar 20               # Mehr Termine (max. 25)
+🧠 Memory & Soul
+Memory
+text
+/memory                    # Letzte Erinnerungen
+/merken [inhalt]          # Notiz speichern
+/gemerkt                  # Alle Notizen anzeigen
+/learn                    # Was ich über dich gelernt habe
+Soul (Persönlichkeit)
+text
+/soul                     # Meine Persönlichkeit
+/generate-soul            # Soul generieren/aktualisieren
+🤖 Modelle verwalten
+text
+/model                    # Aktuelles Modell
+/model liste              # Alle verfügbaren Modelle
+/model [name]             # Modell wechseln
+
+# Beispiele:
+/model llama3.1:8b
+/model qwen2.5-coder:7b
+/model qwen3-vl:8b
+🔥 Pipes & Redirection Beispiele
+Datei erstellen und anzeigen
+text
+/shell (echo Zeile 1 & echo Zeile 2 & echo Zeile 3) > datei.txt && type datei.txt
+Daten filtern
+text
+/shell dir | findstr ".py"
+/shell ipconfig | findstr "IPv4"
+/shell tasklist | findstr "python"
+Daten formatieren
+text
+/shell python tools/web_search.py "mars news" | python tools/formatter.py table
+⚡ Quick Reference - Wichtigste Befehle
+Was du sagen kannst	Was passiert
+öffne notepad	Öffnet Notepad
+mach screenshot	Macht Screenshot
+zeig mir alle python dateien	Listet alle .py Dateien
+zeig mir prozesse	Zeigt laufende Prozesse
+wie viel speicher ist frei	Zeigt freien Speicher
+wer bist du	Normale Konversation
+was siehst du	Webcam-Foto + Vision-Analyse
+/shell dir	Führt Shell-Befehl aus
+/model llama3.1:8b	Wechselt das Modell
+🎯 Tipps & Tricks
+Performance
+Fast Modelle (sam860/LFM2:2.6b) für einfache Fragen
+
+Code Modelle (qwen2.5-coder:7b) für Programmieraufgaben
+
+Vision Modelle (qwen3-vl:8b) für Bildanalyse
+
+Autonome Funktionen
+Nach 10 Minuten Inaktivität: Auto-Exploration
+
+Chat-Verlauf wird automatisch archiviert
+
+Selbstlernendes Memory-System
+
+Fehlerbehebung
+text
+/status                    # System-Status prüfen
+/telegram status           # Telegram-Status
+/comfy status              # ComfyUI-Status
+🌟 Besondere Features
+Plattformunabhängig
+Funktioniert auf Windows, Linux, macOS, Android
+
+Automatische Erkennung des Betriebssystems
+
+Korrekte Befehle für jede Plattform
+
+Selbstlernend
+Merkt sich wichtige Informationen (/merken)
+
+Lernt aus Interaktionen (/learn)
+
+Entwickelt eigene Persönlichkeit (/soul)
+
+Multimodal
+Text: Normale Konversation
+
+Vision: Webcam, Bildanalyse, YOLO-Objekterkennung
+
+Audio: Whisper-Spracherkennung
+
+GUI: Desktop-Steuerung
+
+💡 Pro-Tipp: Du musst keine Shell-Befehle auswendig lernen! Sprich einfach in natürlicher Sprache, und GABI findet die richtigen Befehle für dein Betriebssystem.

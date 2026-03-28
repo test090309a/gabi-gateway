@@ -1,0 +1,24 @@
+model_list:
+  - model_name: "*"                           # Akzeptiert JEDEN Namen, auch sonnet-4-6
+    litellm_params:
+      model: ollama_chat/qwen2.5-coder:14b    # qwen2.5-coder:7b
+      api_base: "http://localhost:11434"
+      num_ctx: 32768                          # Erhöht auf 64k (oder 131072 für 128k)
+      format: "json"
+      drop_params: true
+      extra_body:                             # striktes JSON-Parsing bei Pfaden zu lockern:
+         options:
+             raw: true
+      drop_invalid_params: true
+      request_timeout: 300                    # Wichtig: Längere Zeit für große Dateien geben
+
+litellm_settings:
+  set_verbose: false                          # Schalte Verbose aus, damit es schneller geht
+  drop_params: true                           # Kürzt Tool-Definitionen, damit der System-Prompt klein bleibt
+  modify_params: true
+  disable_user_auth: true                     # Verhindert den DB-Fehler
+  callbacks: ["path_fixer.path_corrector"]    # Hier wird die Middleware aktiviert:
+
+general_settings:
+  database_type: None
+  

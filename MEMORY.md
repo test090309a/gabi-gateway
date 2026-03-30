@@ -615,3 +615,79 @@ Könntest du bitte noch etwas genauer erklären, was du suchst? Zum Beispiel:
 - ...
 **Thema**: allgemein
 ---
+
+## 🌙 Schlafphase [2026-03-30 23:07:08]
+- Grund: idle-1800s
+- Notizen bereinigt: 19 -> 19
+- Memory kompaktiert: nein
+- Interessen aktualisiert: keine
+---
+
+## 🔍 Auto-Exploration [2026-03-30 23:07:08]
+GABI hat das System erkundet:
+### 💻 System:
+
+
+### 🌍 Wichtige Pfade:
+  **PATH**: `M:\Python312\Lib\site-packages\cv2\../../x64/vc17/bin;d:\toolz;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin\x64;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin;M:\Python312\Scripts\;M:\Python312\;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\libnvvp;C:\Program Files\Python38\Scripts\;C:\Program Files\Python38\;C:\Program Files\ImageMagick-7.1.1-Q16-HDRI;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\WezTerm;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\ProgramData\chocolatey\bin;M:\nodejs\;C:\Program Files\Git\cmd;M:\CMake\bin;C:\Program Files\NVIDIA Corporation\Nsight Compute 2025.3.1\;C:\Program Files\usbipd-win\;C:\Program Files\Docker\Docker\resources\bin;C:\Program Files\PowerShell\7\;m:\cmake\bin;M:\xampp\mysql\bin;M:\elasticsearch\bin;m:\kibana\bin;M:\logstash\bin;M:\kibana;M:\xampp\php;d:\toolz;D:\toolz\llama;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0;M:\blender;C:\Program Files\Git\bin;m:\llama-b5780-bin-win-cuda-12.4-x64;C:\Users\i2u5h\Desktop\trellis\system\git\bin;C:\Users\i2u5h\Desktop\trellis\system\python;C:\Users\i2u5h\Desktop\trellis\system\python\Scripts;C:\Users\i2u5h\.local\share\mamba\condabin;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13\libnvvp;C:\Program Files\ImageMagick-7.1.1-Q16-HDRI;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\Program Files\NVIDIA Corporation\Nsight Compute 2024.3.1\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Git\cmd;C:\Program Files\WezTerm;C:\Users\i2u5h\AppData\Local\micromamba;C:\Users\i2;C:\Users\i2u5h\AppData\Local\Programs\Microsoft VS Code\bin;D:\toolz\sqlite;C:\sqlite;C:\mingw64\bin;C:\Users\i2u5h\AppData\Roaming\Python\Python312\Scripts;C:\Users\i2u5h\AppData\Roaming\Python\Python312\site-packages;C:\Users\i2u5h\AppData\Roaming\Python\Python312\;m:\invokeai\models\any\clip_vision\clip-vit-large-patch14\text_encoder;m:\invokeai\models\any\clip_vision\clip-vit-large-patch14\;m:\invokeai\models\any\clip_vision\;m:\invokeai\models\any\;D:\toolz\Nmap;C:\Users\i2u5h\AppData\Local\Programs\Ollama;C:\Users\i2u5h\AppData\Local\Microsoft\WindowsApps;M:\ComfyUI_windows_portable\python_embeded\Scripts;D:\toolz\7-Zip;C:\Users\i2u5h\AppData\Roaming\npm;`
+  **USERPROFILE**: `C:\Users\i2u5h`
+  **TEMP**: `C:\Users\i2u5h\AppData\Local\Temp`
+  **TMP**: `C:\Users\i2u5h\AppData\Local\Temp`
+
+### 💾 Verfügbare Laufwerke:
+  • C:\ - 2407.47 GB frei
+  • D:\ - 179.53 GB frei
+  • K:\ - 7.8 GB frei
+  • M:\ - 431.93 GB frei
+
+### ⚙️ Prozesse:
+- Laufende Prozesse: 61
+
+### 🌐 Netzwerk:
+- Aktive Verbindungen: 0
+- Listening Ports: 0
+
+### 📚 Archive:
+- Gespeicherte Chats: 5
+- Gesamt Nachrichten: 48
+
+### 💡 Entdeckung:
+📝 Ich habe alte Log-Dateien gefunden.
+
+## 🌙 Schlafphase [2026-03-30 23:22:11]
+- Grund: idle-2703s
+- Notizen bereinigt: 19 -> 19
+- Memory kompaktiert: nein
+- Interessen aktualisiert: keine
+---
+
+## 🔍 Auto-Exploration [2026-03-30 23:22:11]
+GABI hat das System erkundet:
+### 💻 System:
+
+
+### 🌍 Wichtige Pfade:
+  **PATH**: `M:\Python312\Lib\site-packages\cv2\../../x64/vc17/bin;d:\toolz;C:\Program Files (x86)\Common Files\Oracle\Java\java8path;C:\Program Files (x86)\Common Files\Oracle\Java\javapath;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin\x64;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin;M:\Python312\Scripts\;M:\Python312\;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\bin;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6\libnvvp;C:\Program Files\Python38\Scripts\;C:\Program Files\Python38\;C:\Program Files\ImageMagick-7.1.1-Q16-HDRI;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\WezTerm;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\ProgramData\chocolatey\bin;M:\nodejs\;C:\Program Files\Git\cmd;M:\CMake\bin;C:\Program Files\NVIDIA Corporation\Nsight Compute 2025.3.1\;C:\Program Files\usbipd-win\;C:\Program Files\Docker\Docker\resources\bin;C:\Program Files\PowerShell\7\;m:\cmake\bin;M:\xampp\mysql\bin;M:\elasticsearch\bin;m:\kibana\bin;M:\logstash\bin;M:\kibana;M:\xampp\php;d:\toolz;D:\toolz\llama;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0;M:\blender;C:\Program Files\Git\bin;m:\llama-b5780-bin-win-cuda-12.4-x64;C:\Users\i2u5h\Desktop\trellis\system\git\bin;C:\Users\i2u5h\Desktop\trellis\system\python;C:\Users\i2u5h\Desktop\trellis\system\python\Scripts;C:\Users\i2u5h\.local\share\mamba\condabin;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13\libnvvp;C:\Program Files\ImageMagick-7.1.1-Q16-HDRI;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\dotnet\;C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit\;C:\Program Files\NVIDIA Corporation\Nsight Compute 2024.3.1\;C:\Program Files\Common Files\Autodesk Shared\;C:\Program Files\Git\cmd;C:\Program Files\WezTerm;C:\Users\i2u5h\AppData\Local\micromamba;C:\Users\i2;C:\Users\i2u5h\AppData\Local\Programs\Microsoft VS Code\bin;D:\toolz\sqlite;C:\sqlite;C:\mingw64\bin;C:\Users\i2u5h\AppData\Roaming\Python\Python312\Scripts;C:\Users\i2u5h\AppData\Roaming\Python\Python312\site-packages;C:\Users\i2u5h\AppData\Roaming\Python\Python312\;m:\invokeai\models\any\clip_vision\clip-vit-large-patch14\text_encoder;m:\invokeai\models\any\clip_vision\clip-vit-large-patch14\;m:\invokeai\models\any\clip_vision\;m:\invokeai\models\any\;D:\toolz\Nmap;C:\Users\i2u5h\AppData\Local\Programs\Ollama;C:\Users\i2u5h\AppData\Local\Microsoft\WindowsApps;M:\ComfyUI_windows_portable\python_embeded\Scripts;D:\toolz\7-Zip;C:\Users\i2u5h\AppData\Roaming\npm;`
+  **USERPROFILE**: `C:\Users\i2u5h`
+  **TEMP**: `C:\Users\i2u5h\AppData\Local\Temp`
+  **TMP**: `C:\Users\i2u5h\AppData\Local\Temp`
+
+### 💾 Verfügbare Laufwerke:
+  • C:\ - 2407.25 GB frei
+  • D:\ - 179.53 GB frei
+  • K:\ - 7.8 GB frei
+  • M:\ - 431.93 GB frei
+
+### ⚙️ Prozesse:
+- Laufende Prozesse: 62
+
+### 🌐 Netzwerk:
+- Aktive Verbindungen: 0
+- Listening Ports: 0
+
+### 📚 Archive:
+- Gespeicherte Chats: 5
+- Gesamt Nachrichten: 48
+
+### 💡 Entdeckung:
+🔍 Ich habe interessante Konfigurationsdateien gefunden.

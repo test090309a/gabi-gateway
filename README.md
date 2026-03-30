@@ -1,3 +1,5 @@
+![GABI Gateway](gg.jpg)
+
 # 🧠 GABI Gateway
 
 **G**ateway **A**I **B**ot **I**nterface - Ein intelligenter KI-Assistent mit Sprachsteuerung, Web-Suche, Bildgenerierung und mehr.

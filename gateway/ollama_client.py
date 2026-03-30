@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from gateway.config import config
+from config import config
 
 # logger = logging.getLogger(__name__) # "magisch", weil die Notation OLLAMA_CLIENT kommt zustande, weil Python in __name__ den Dateinamen speichert.
 logger = logging.getLogger("OLLAMA")

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from fastapi import APIRouter, Header, HTTPException, Depends
 
-from gateway.auth import verify_token
+from auth import verify_token
 from gateway.core.memory import chat_memory, MEMORY_FILE, NOTES_FILE
 
 logger = logging.getLogger(__name__)

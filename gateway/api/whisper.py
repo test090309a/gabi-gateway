@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Header, HTTPException, Depends, UploadFile, File, Form
 
-from gateway.auth import verify_token
-from gateway.config import config
+from auth import verify_token
+from config import config
 
 logger = logging.getLogger(__name__)
 

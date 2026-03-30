@@ -20,7 +20,7 @@ class RightHemisphere:
     def __init__(self):
         self.name = "🎨 GABI Right (Creative)"
         self.specialties = ["vision", "audio", "language", "creativity", "emotion"]
-        from gateway.config import config        
+        from config import config        
         self.active_model = "llama2:latest"  # granite4:tiny-h, Bevorzugt allgemeine Modelle
         self._vision = None
         self._whisper = None

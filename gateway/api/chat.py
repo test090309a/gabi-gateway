@@ -25,8 +25,8 @@ from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Header, HTTPException, Depends, Form, UploadFile, File
 from pydantic import BaseModel
 
-from gateway.config import config
-from gateway.auth import verify_api_key
+from config import config
+from auth import verify_api_key
 from gateway.ollama_client import ollama_client
 from gateway.core.memory import chat_memory
 from gateway.core.router import (
@@ -59,9 +59,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Konstanten
-API_KEY_REQUIRED = config.get("api_key", "sysop")
-DEFAULT_MODEL = config.get("ollama.default_model", "llama2:latest")
+# API_KEY_REQUIRED = config.get("api_key", "sysop")
+# DEFAULT_MODEL = config.get("ollama.default_model", "llama2:latest")
+# Verwende eine Funktion:
+def get_api_key_required():
+    return config.get("api_key", "sysop")
 
+def get_default_model():
+    return config.get("ollama.default_model", "llama2:latest")
 
 class ChatRequest(BaseModel):
     """Chat-Anfrage-Modell."""
@@ -387,7 +392,7 @@ async def chat_with_gabi(request: ChatRequest, token: str = Header(None, alias="
     - Shell/GUI-Befehlsausführung
     - Smart SoM Agent Integration (intelligente Web-Suche)
     """
-    if token != API_KEY_REQUIRED:
+    if token != get_api_key_required():
         raise HTTPException(status_code=403, detail="API-Key ungültig")
     
     request_id = (request.request_id or "").strip() or f"gabi-{uuid.uuid4().hex[:12]}"
@@ -804,7 +809,7 @@ async def analyze_image_with_vlm(
     """
     Analysiert ein hochgeladenes Bild mit einem Vision-Modell.
     """
-    if token != API_KEY_REQUIRED:
+    if token != get_api_key_required():
         raise HTTPException(status_code=403, detail="API-Key ungültig")
     
     rid = (request_id or "").strip() or f"img-{uuid.uuid4().hex[:12]}"
@@ -890,7 +895,7 @@ async def analyze_image_with_vlm(
 @router.get("/api/chat/progress/{request_id}")
 async def get_chat_progress(request_id: str, since: int = 0, token: str = Header(None)):
     """Poll live progress steps for a running chat request."""
-    if token != API_KEY_REQUIRED:
+    if token != get_api_key_required():
         raise HTTPException(status_code=403, detail="API-Key ungültig")
     
     from gateway.core.progress import _progress_get
@@ -900,7 +905,7 @@ async def get_chat_progress(request_id: str, since: int = 0, token: str = Header
 @router.post("/api/chat/stop")
 async def stop_chat(payload: dict, token: str = Header(None)):
     """Stop an active chat request and try to abort running Ollama generation."""
-    if token != API_KEY_REQUIRED:
+    if token != get_api_key_required():
         raise HTTPException(status_code=403, detail="API-Key ungültig")
     
     from gateway.core.progress import _progress_cancel, _stop_ollama_model, _list_running_ollama_models, _CHAT_PROGRESS, _CHAT_PROGRESS_LOCK

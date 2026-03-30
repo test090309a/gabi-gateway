@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-from gateway.config import config
+from config import config
 from gateway.utils.model_helpers import (
     _extract_model_score,
     _pick_best_model,

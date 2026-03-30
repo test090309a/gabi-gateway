@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 
-from gateway.auth import verify_token
+from auth import verify_token
 from gateway.core.integration_watcher import (
     get_integration_status,
     reload_single_integration,

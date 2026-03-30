@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Union
 from fastapi import APIRouter, Header, HTTPException, Depends, Query
 
-from gateway.auth import verify_token
-from gateway.config import config
+from auth import verify_token
+from config import config
 from gateway.core.memory import chat_memory
 
 logger = logging.getLogger(__name__)

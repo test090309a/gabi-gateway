@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from gateway.config import config
+from config import config
 
 logger = logging.getLogger(__name__)
 

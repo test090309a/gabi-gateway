@@ -18,7 +18,7 @@ class LeftHemisphere:
         self.name = "🧠 GABI Left (Analytical)"
         self.specialties = ["code", "shell", "math", "system", "logic", "search", "analysis"]
         # FIX: Verwende default_model aus Config statt hartcodiert
-        from gateway.config import config
+        from config import config
         self.active_model = config.get("ollama.default_model", "llama2:latest")
         logger.info(f"🔵 {self.name} initialisiert mit Modell: {self.active_model}")
     
@@ -104,7 +104,7 @@ class LeftHemisphere:
         context = data.get("context", []) or data.get("hemisphere_history", [])
         
         # FIX: Verwende Code-spezifisches Modell aus Config, nicht hartcodiert
-        from gateway.config import config
+        from config import config
         preferred_code_models = config.get("ollama.preferred_code_models", [])
         if preferred_code_models and isinstance(preferred_code_models, list):
             code_model = preferred_code_models[0]  # Nimm das erste bevorzugte Code-Modell

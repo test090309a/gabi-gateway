@@ -10,8 +10,8 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, Header, HTTPException, Depends, Form, UploadFile, File
 from fastapi.responses import FileResponse
 
-from gateway.auth import verify_token
-from gateway.config import config
+from auth import verify_token
+from config import config
 from gateway.ollama_client import ollama_client
 from gateway.core.memory import chat_memory
 from gateway.utils.model_helpers import _extract_ollama_text, _pick_preferred_available, _pick_best_model, _as_model_pref_list

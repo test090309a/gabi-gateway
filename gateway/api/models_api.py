@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 import logging
 
-from gateway.auth import verify_token
+from auth import verify_token
 from gateway.ollama_client import ollama_client
-from gateway.config import config
+from config import config
 from gateway.utils.model_helpers import _infer_model_capabilities
 
 logger = logging.getLogger(__name__)

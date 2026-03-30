@@ -10,7 +10,7 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import functools
 
-from gateway.config import config
+from config import config
 from gateway.ollama_client import ollama_client
 
 logger = logging.getLogger("GATEWAY.self_correction")

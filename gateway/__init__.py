@@ -5,8 +5,8 @@ __version__ = "1.0.0"
 __author__ = "GABI Team"
 __license__ = "MIT"
 
-from gateway.config import config
-from gateway.auth import verify_api_key
+from config import config
+from auth import verify_api_key
 from gateway.ollama_client import ollama_client
 
 # Core components

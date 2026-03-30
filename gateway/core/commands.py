@@ -15,14 +15,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
-from gateway.config import config
+from config import config
 from gateway.core.memory import chat_memory
 from gateway.utils.model_helpers import _extract_ollama_text
 
 logger = logging.getLogger(__name__)
 
 # Globale Konstante für API-Key (wird bei Bedarf gesetzt)
-API_KEY_REQUIRED = config.get("api_key", "sysop")
+# API_KEY_REQUIRED = config.get("api_key", "sysop")
+def get_api_key_required():
+    return config.get("api_key", "sysop")
+
+def get_default_model():
+    return config.get("ollama.default_model", "llama2:latest")
 
 
 def _find_program(program_name: str) -> Optional[str]:
@@ -890,7 +895,7 @@ async def handle_command(message: str, token: str) -> Dict[str, Any]:
                         
                         return {"status": "success", "reply": f"✅ Nachricht an {sent} Benutzer gesendet"}
                     else:
-                        from gateway.config import config
+                        from config import config
                         default_chat_id = config.get("telegram.chat_id", None)
                         
                         if default_chat_id:

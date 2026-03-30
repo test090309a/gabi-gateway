@@ -7,7 +7,7 @@ import base64
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-from gateway.config import config
+from config import config
 from gateway.ollama_client import ollama_client
 
 logger = logging.getLogger(__name__)

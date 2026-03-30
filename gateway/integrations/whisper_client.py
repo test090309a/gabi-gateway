@@ -6,7 +6,7 @@ import requests
 import time
 from typing import Dict, Any, Optional, List
 
-from gateway.config import config
+from config import config
 
 logger = logging.getLogger(__name__)
 

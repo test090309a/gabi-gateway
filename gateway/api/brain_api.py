@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 
-from gateway.auth import verify_token
+from auth import verify_token
 from gateway.core.brain import get_brain, reset_brain
 
 logger = logging.getLogger(__name__)

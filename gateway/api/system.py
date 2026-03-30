@@ -10,8 +10,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
-from gateway.auth import verify_token
-from gateway.config import config
+from auth import verify_token
+from config import config
 from gateway.ollama_client import ollama_client
 from gateway.core.memory import chat_memory
 from gateway.core.integration_watcher import get_integration_status

@@ -57,13 +57,14 @@ class ChatMemory:
         
         # Auto-Exploration starten
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(self._start_auto_exploration())
-            else:
-                loop.run_until_complete(self._start_auto_exploration())
-        except Exception:
-            asyncio.create_task(self._start_auto_exploration())
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._start_auto_exploration())
+        except RuntimeError:
+            # Keine laufende Event-Loop, starte eine neue
+            import threading
+            def run_async():
+                asyncio.run(self._start_auto_exploration())
+            threading.Thread(target=run_async, daemon=True).start()
     
     # ===== READ/WRITE METHODEN =====
     

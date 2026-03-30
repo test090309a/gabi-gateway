@@ -10,16 +10,18 @@
 
 ## ✨ Features
 
-- 🎤 **Sprachsteuerung** - "Hey GABI" aktiviert Whisper-Transkription
-- 🌐 **Web-Suche** - Headless DuckDuckGo Suche mit SmartSoMAgent
-- 🎨 **ComfyUI Integration** - Bildgenerierung mit eigenen Workflows
-- 📷 **Vision & Webcam** - Bildanalyse mit Vision-Modellen + YOLO Objekterkennung
-- 📱 **Telegram Bot** - Chat über Telegram mit allen GABI-Funktionen
-- 📧 **Gmail Integration** - E-Mails lesen, senden, beantworten
-- 💻 **Shell & GUI Control** - Systembefehle und GUI-Automatisierung
-- 🧠 **Memory System** - Notizen, Konversationsverlauf, Chat-Archive
-- 🔧 **Corpus Callosum** - Hemisphären-Routing für optimale Modellauswahl
-- ⚡ **Hot-Reload** - Dynamisches Laden von Integrationen
+| Feature | Beschreibung |
+|---------|--------------|
+| 🎤 **Sprachsteuerung** | "Hey GABI" aktiviert Whisper-Transkription |
+| 🌐 **Web-Suche** | Headless DuckDuckGo Suche mit SmartSoMAgent |
+| 🎨 **ComfyUI Integration** | Bildgenerierung mit eigenen Workflows |
+| 📷 **Vision & Webcam** | Bildanalyse mit Vision-Modellen + YOLO Objekterkennung |
+| 📱 **Telegram Bot** | Chat über Telegram mit allen GABI-Funktionen |
+| 📧 **Gmail Integration** | E-Mails lesen, senden, beantworten |
+| 💻 **Shell & GUI Control** | Systembefehle und GUI-Automatisierung |
+| 🧠 **Memory System** | Notizen, Konversationsverlauf, Chat-Archive |
+| 🔧 **Corpus Callosum** | Hemisphären-Routing für optimale Modellauswahl |
+| ⚡ **Hot-Reload** | Dynamisches Laden von Integrationen |
 
 ---
 
@@ -47,9 +49,10 @@ pip install -r requirements.txt
 Starten
 bash
 python main.py
-Dashboard: http://localhost:8000
-API Docs: http://localhost:8000/docs
-
+Endpunkt	URL
+Dashboard	http://localhost:8000
+API Docs	http://localhost:8000/docs
+ReDoc	http://localhost:8000/redoc
 📋 Befehle
 Befehl	Beschreibung
 /vision	Webcam-Foto + Analyse
@@ -62,10 +65,10 @@ Befehl	Beschreibung
 /telegram send <msg>	Nachricht an Telegram
 /model <name>	Modell wechseln
 /help	Alle Befehle anzeigen
-Sprachsteuerung
+🎤 Sprachsteuerung
 "Hey GABI" - Aktiviert die Spracherkennung
 
-Web-Suche
+🌐 Web-Suche
 "google <frage>" - Führt eine Web-Suche durch
 
 ⚙️ Konfiguration
@@ -111,25 +114,33 @@ gabi-gateway/
 ├── screenshots/            # Screenshots und generierte Bilder
 └── chat_archives/          # Chat-Archive
 🛠️ Technologien
-Backend: FastAPI, Uvicorn
-
-KI: Ollama (Llama, Qwen, Vision-Modelle)
-
-Spracherkennung: Whisper.cpp
-
-Web-Suche: Selenium, DuckDuckGo
-
-Bildgenerierung: ComfyUI
-
-GUI-Steuerung: PyAutoGUI
-
-Telegram: python-telegram-bot
-
-Gmail/Calendar: Google APIs
-
+Bereich	Technologie
+Backend	FastAPI, Uvicorn
+KI	Ollama (Llama, Qwen, Vision-Modelle)
+Spracherkennung	Whisper.cpp
+Web-Suche	Selenium, DuckDuckGo
+Bildgenerierung	ComfyUI
+GUI-Steuerung	PyAutoGUI
+Telegram	python-telegram-bot
+Gmail/Calendar	Google APIs
 📝 Lizenz
-MIT License
+MIT License - siehe LICENSE Datei
 
 🤝 Contributing
 Issues und Pull Requests sind willkommen!
 
+Fork das Repository
+
+Erstelle einen Feature Branch (git checkout -b feature/amazing)
+
+Commit deine Änderungen (git commit -m 'Add amazing feature')
+
+Push zum Branch (git push origin feature/amazing)
+
+Öffne einen Pull Request
+
+🙏 Credits
+Entwickelt mit 💻 und ☕
+
+📞 Kontakt
+Bei Fragen oder Problemen: GitHub Issues

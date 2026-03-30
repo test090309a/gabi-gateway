@@ -73,7 +73,7 @@ Alle Einstellungen in config.yaml:
 
 yaml
 # API Key für Authentifizierung
-api_key: "sysop"
+api_key: "DEIN_API_KEY"
 
 # Ollama Modelle
 ollama:

@@ -111,16 +111,20 @@ gabi-gateway/
 ├── static/                 # Web-Dashboard
 ├── screenshots/            # Screenshots und generierte Bilder
 └── chat_archives/          # Chat-Archive
-🛠️ Technologien
-Bereich	Technologie
-Backend	FastAPI, Uvicorn
-KI	Ollama (Llama, Qwen, Vision-Modelle)
-Spracherkennung	Whisper.cpp
-Web-Suche	Selenium, DuckDuckGo
-Bildgenerierung	ComfyUI
-GUI-Steuerung	PyAutoGUI
-Telegram	python-telegram-bot
-Gmail/Calendar	Google APIs
+
+---
+
+## 🛠️ Technologien
+
+- **Backend:** FastAPI, Uvicorn
+- **KI:** Ollama (Llama, Qwen, Vision-Modelle)
+- **Spracherkennung:** Whisper.cpp
+- **Web-Suche:** Selenium, DuckDuckGo
+- **Bildgenerierung:** ComfyUI
+- **GUI-Steuerung:** PyAutoGUI
+- **Telegram:** python-telegram-bot
+- **Gmail/Calendar:** Google APIs
+
 📝 Lizenz
 MIT License
 

@@ -14,42 +14,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# ===== Globale Variable für den Bot-Singleton =====
-_shared_bot = None 
-
-class TelegramBotWrapper:
-    """
-    Wrapper für den Telegram Bot mit Lazy-Import.
-    Vermeidet Import-Fehler wenn Telegram nicht installiert ist.
-    """
-    
-    _bot = None
-    _available = None
-    
-    @classmethod
-    def get_bot(cls):
-        """Get or create Telegram bot instance."""
-        if cls._bot is None and cls._available is not False:
-            try:
-                from gateway.integrations.telegram_bot import get_telegram_bot
-                cls._bot = get_telegram_bot()
-                cls._available = True
-                logger.info("✅ Telegram bot initialized")
-            except ImportError as e:
-                logger.warning(f"⚠️ Telegram bot not available: {e}")
-                cls._available = False
-            except Exception as e:
-                logger.error(f"❌ Telegram bot error: {e}")
-                cls._available = False
-        return cls._bot
-    
-    @classmethod
-    def is_available(cls):
-        """Check if Telegram bot is available."""
-        if cls._available is None:
-            cls.get_bot()
-        return cls._available is True
-
 
 def get_telegram_bot():
     """Get Telegram bot instance - uses the sync singleton."""
@@ -406,14 +370,6 @@ async def get_telegram_messages(
             "status": "error",
             "message": "Telegram Bot nicht verfügbar."
         }
-    
-    # ===== DEBUG: Log Bot-Info =====
-    # logger.info(f"📊 get_telegram_messages called")
-    # logger.info(f"   bot id: {id(bot)}")
-    # logger.info(f"   bot._user_sessions keys: {list(bot._user_sessions.keys()) if hasattr(bot, '_user_sessions') else 'no _user_sessions'}")
-    # logger.info(f"   bot._running: {bot._running}")
-    # logger.info(f"   bot.application: {bot.application is not None}")
-    # ===============================
     
     try:
         all_messages = []

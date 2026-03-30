@@ -468,6 +468,19 @@ def get_brain() -> CorpusCallosum:
     return _callosum
 
 
+def reset_brain() -> CorpusCallosum:
+    """
+    Setzt das Gehirn zurück und erstellt eine neue Instanz.
+    
+    Returns:
+        Neue CorpusCallosum Instanz
+    """
+    global _callosum
+    _callosum = CorpusCallosum()
+    logger.info("🔄 Brain zurückgesetzt - neue Instanz erstellt")
+    return _callosum
+
+
 # Convenience-Funktionen für einfachen Zugriff
 def route_task(task: Dict[str, Any]) -> Dict[str, Any]:
     """Leitet eine Aufgabe an GABIs Gehirn weiter"""

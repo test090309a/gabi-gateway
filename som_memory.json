@@ -1,0 +1,250 @@
+{
+  "pages": {
+    "https://www.startpage.com": {
+      "url": "https://www.startpage.com",
+      "goal": "Suche nach 'suche nach der besten grafikkarte auf der welt'",
+      "extracted_at": "2026-03-26T13:27:27.958940",
+      "content": {
+        "title": "Startpage Blocked",
+        "text": "Ihre Verbindung wurde unterbrochen\nEntschuldige die Unterbrechung! Unser System hat von deiner Internetverbindung eine hohe Anzahl Anfragen erfasst. Dies deutet normalerweise auf Bots oder Scraping hin.\nVPN-User können dieses Problem oft beheben, indem sie sich über einen anderen Server verbinden. Wenn du Tor verwendest, versuche dich über einen anderen Exitknoten zu verbinden.\nWenn du ständig blockiert wirst, vervollständige das folgende CAPTCHA. Unser Support-Team prüft dann deine Verbindung zu Startpage.\nDurch die Angabe der folgenden Informationen können wir dich besser unterstützen und unsere Systeme zur Missbrauchsbekämpfung optimieren.\nNutzt du einen oder mehrere der folgenden Dienste:\nVPN\nTor\nProxy\nFirmen- oder andere gemeinsame Netzwerke\nE-Mail (optional)\nBeschreibung des Problems (optional)\nBitte gib folgenden Text ein, um deine Anfrage zu übermitteln.\nBeim Text im Bild wird Groß- und Kleinschreibung berücksichtigt.\nVerbleibende Zeit, um das CAPTCHA zu lösen:01:57\nProbleme, das CAPTCHA zu lesen? Bitteklicke hier, um ein neues CAPTCHA anzuzeigen.\nDieser Vorgang kann beliebig oft wiederholt werden.\nAbschicken\nLearn more about how to be private online. Visit our privacy blog.\nDatenschutzrichtlinie\nImpressum\nÜber Uns\nPresse\nStartMail",
+        "links": [
+          {
+            "text": "",
+            "href": "https://www.startpage.com/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/de/about-us/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/de/privacy-policy/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/nix-zu-verbergen/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/nix-zu-verbergen/pressezentrum?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://support.startpage.com/hc/de?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/do/settings?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/?cat=images&t=light"
+          },
+          {
+            "text": "",
+            "href": "https://support.startpage.com/hc/de/articles/4521527855636-Impressum?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/nix-zu-verbergen/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/de/how-startpage-works?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/de/anonymous-view?t=light"
+          },
+          {
+            "text": "Abschicken",
+            "href": "https://www.startpage.com/"
+          },
+          {
+            "text": "Learn more about how to be private online. Visit o",
+            "href": "https://www.startpage.com/privacy-please"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/?t=light"
+          },
+          {
+            "text": "Datenschutzrichtlinie",
+            "href": "https://www.startpage.com/en/privacy-policy/?t=light"
+          },
+          {
+            "text": "Impressum",
+            "href": "https://www.startpage.com/en/about-us/?t=light"
+          },
+          {
+            "text": "Über Uns",
+            "href": "https://www.startpage.com/privacy-please/press?t=light"
+          },
+          {
+            "text": "Presse",
+            "href": "https://www.startmail.com/en/startpage/?pk_campaign=startpage?t=light"
+          },
+          {
+            "text": "StartMail",
+            "href": "https://www.startmail.com/de/startpage/?pk_campaign=startpage?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://twitter.com/startpage"
+          },
+          {
+            "text": "",
+            "href": "https://www.reddit.com/r/StartpageSearch/"
+          },
+          {
+            "text": "",
+            "href": "https://www.instagram.com/startpage/"
+          },
+          {
+            "text": "",
+            "href": "https://www.facebook.com/startpagesearch/"
+          },
+          {
+            "text": "",
+            "href": "https://mastodon.social/@StartpageSearch"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/privacy-please"
+          }
+        ],
+        "headings": [
+          {
+            "level": "h1",
+            "text": "Ihre Verbindung wurde unterbrochen"
+          }
+        ],
+        "search_results": []
+      }
+    }
+  },
+  "learned_actions": [
+    {
+      "url": "https://www.startpage.com",
+      "goal": "Suche nach 'suche nach der besten grafikkarte auf der welt'",
+      "learned_at": "2026-03-26T13:27:27.958940",
+      "content": {
+        "title": "Startpage Blocked",
+        "text": "Ihre Verbindung wurde unterbrochen\nEntschuldige die Unterbrechung! Unser System hat von deiner Internetverbindung eine hohe Anzahl Anfragen erfasst. Dies deutet normalerweise auf Bots oder Scraping hin.\nVPN-User können dieses Problem oft beheben, indem sie sich über einen anderen Server verbinden. Wenn du Tor verwendest, versuche dich über einen anderen Exitknoten zu verbinden.\nWenn du ständig blockiert wirst, vervollständige das folgende CAPTCHA. Unser Support-Team prüft dann deine Verbindung zu Startpage.\nDurch die Angabe der folgenden Informationen können wir dich besser unterstützen und unsere Systeme zur Missbrauchsbekämpfung optimieren.\nNutzt du einen oder mehrere der folgenden Dienste:\nVPN\nTor\nProxy\nFirmen- oder andere gemeinsame Netzwerke\nE-Mail (optional)\nBeschreibung des Problems (optional)\nBitte gib folgenden Text ein, um deine Anfrage zu übermitteln.\nBeim Text im Bild wird Groß- und Kleinschreibung berücksichtigt.\nVerbleibende Zeit, um das CAPTCHA zu lösen:01:57\nProbleme, das CAPTCHA zu lesen? Bitteklicke hier, um ein neues CAPTCHA anzuzeigen.\nDieser Vorgang kann beliebig oft wiederholt werden.\nAbschicken\nLearn more about how to be private online. Visit our privacy blog.\nDatenschutzrichtlinie\nImpressum\nÜber Uns\nPresse\nStartMail",
+        "links": [
+          {
+            "text": "",
+            "href": "https://www.startpage.com/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/de/about-us/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/de/privacy-policy/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/nix-zu-verbergen/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/nix-zu-verbergen/pressezentrum?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://support.startpage.com/hc/de?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/do/settings?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/?cat=images&t=light"
+          },
+          {
+            "text": "",
+            "href": "https://support.startpage.com/hc/de/articles/4521527855636-Impressum?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/nix-zu-verbergen/?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/de/how-startpage-works?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/de/anonymous-view?t=light"
+          },
+          {
+            "text": "Abschicken",
+            "href": "https://www.startpage.com/"
+          },
+          {
+            "text": "Learn more about how to be private online. Visit o",
+            "href": "https://www.startpage.com/privacy-please"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/?t=light"
+          },
+          {
+            "text": "Datenschutzrichtlinie",
+            "href": "https://www.startpage.com/en/privacy-policy/?t=light"
+          },
+          {
+            "text": "Impressum",
+            "href": "https://www.startpage.com/en/about-us/?t=light"
+          },
+          {
+            "text": "Über Uns",
+            "href": "https://www.startpage.com/privacy-please/press?t=light"
+          },
+          {
+            "text": "Presse",
+            "href": "https://www.startmail.com/en/startpage/?pk_campaign=startpage?t=light"
+          },
+          {
+            "text": "StartMail",
+            "href": "https://www.startmail.com/de/startpage/?pk_campaign=startpage?t=light"
+          },
+          {
+            "text": "",
+            "href": "https://twitter.com/startpage"
+          },
+          {
+            "text": "",
+            "href": "https://www.reddit.com/r/StartpageSearch/"
+          },
+          {
+            "text": "",
+            "href": "https://www.instagram.com/startpage/"
+          },
+          {
+            "text": "",
+            "href": "https://www.facebook.com/startpagesearch/"
+          },
+          {
+            "text": "",
+            "href": "https://mastodon.social/@StartpageSearch"
+          },
+          {
+            "text": "",
+            "href": "https://www.startpage.com/privacy-please"
+          }
+        ],
+        "headings": [
+          {
+            "level": "h1",
+            "text": "Ihre Verbindung wurde unterbrochen"
+          }
+        ],
+        "search_results": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,371 @@
+/* ============================================
+   APPLE-INSPIRED DESIGN
+   Minimalistisch, Glas-Morphismus, weiche Übergänge
+============================================ */
+
+/* Reset & Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Icons', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    transition: background-color 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), color 0.3s ease;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========== LIGHT MODE (Apple hell) ========== */
+body.light-mode {
+    background: linear-gradient(135deg, #f5f5f7 0%, #e8e8ed 100%);
+    color: #1c1c1e;
+}
+
+/* ========== DARK MODE (Apple dunkel) ========== */
+body.dark-mode {
+    background: linear-gradient(135deg, #1c1c1e 0%, #2c2c2e 100%);
+    color: #f5f5f7;
+}
+
+/* ========== GLASS MORPHISM CARDS ========== */
+.glass {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 24px;
+    transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+body.light-mode .glass {
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(224, 224, 230, 0.5);
+}
+
+body.dark-mode .glass {
+    background: rgba(28, 28, 30, 0.72);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(68, 68, 70, 0.5);
+}
+
+/* Hover-Effekt für Cards */
+.glass:hover {
+    transform: translateY(-2px);
+}
+
+/* ========== CHAT BUBBLES (Apple iMessage Style) ========== */
+.chat-bubble-user {
+    border-radius: 24px 24px 8px 24px;
+    padding: 12px 18px;
+    max-width: 80%;
+    transition: transform 0.2s ease;
+}
+
+body.light-mode .chat-bubble-user {
+    background: linear-gradient(135deg, #007aff, #0051d5);
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.2);
+}
+
+body.dark-mode .chat-bubble-user {
+    background: linear-gradient(135deg, #0a84ff, #0066dc);
+    color: white;
+    box-shadow: 0 2px 8px rgba(10, 132, 255, 0.3);
+}
+
+.chat-bubble-assistant {
+    border-radius: 24px 24px 24px 8px;
+    padding: 12px 18px;
+    max-width: 80%;
+}
+
+body.light-mode .chat-bubble-assistant {
+    background: rgba(255, 255, 255, 0.9);
+    color: #1c1c1e;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+body.dark-mode .chat-bubble-assistant {
+    background: rgba(44, 44, 46, 0.9);
+    color: #f5f5f7;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Message Animation */
+.message-enter {
+    animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========== INPUT AREA ========== */
+.input-area {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 0 0 24px 24px;
+}
+
+body.light-mode .input-area {
+    background: rgba(255, 255, 255, 0.85);
+    border-top: 1px solid rgba(224, 224, 230, 0.8);
+}
+
+body.dark-mode .input-area {
+    background: rgba(28, 28, 30, 0.85);
+    border-top: 1px solid rgba(68, 68, 70, 0.8);
+}
+
+/* Input Field */
+textarea, input {
+    border-radius: 20px;
+    transition: all 0.2s ease;
+}
+
+body.light-mode textarea, 
+body.light-mode input {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(224, 224, 230, 0.8);
+    color: #1c1c1e;
+}
+
+body.dark-mode textarea, 
+body.dark-mode input {
+    background: rgba(44, 44, 46, 0.9);
+    border: 1px solid rgba(68, 68, 70, 0.8);
+    color: #f5f5f7;
+}
+
+textarea:focus, input:focus {
+    outline: none;
+    border-color: #007aff;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+}
+
+/* ========== BUTTONS (Apple Style) ========== */
+.btn-primary {
+    background: linear-gradient(135deg, #007aff, #0051d5);
+    border-radius: 40px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    border: none;
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+/* Secondary Buttons */
+.secondary-btn {
+    border-radius: 40px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+body.light-mode .secondary-btn {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.dark-mode .secondary-btn {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.secondary-btn:hover {
+    transform: scale(1.02);
+}
+
+/* ========== WAKE WORD STATUS ========== */
+.wake-status-bar {
+    border-radius: 40px;
+    transition: all 0.2s ease;
+}
+
+.wake-active {
+    border-left: 3px solid #34c759;
+    background: rgba(52, 199, 89, 0.15);
+}
+
+/* Pulse Animation */
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.wake-pulse {
+    animation: pulse 0.5s ease-in-out;
+}
+
+/* ========== TYPING INDICATOR ========== */
+.typing-indicator span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: typing 1.4s infinite;
+}
+
+body.light-mode .typing-indicator span {
+    background-color: #8e8e93;
+}
+
+body.dark-mode .typing-indicator span {
+    background-color: #98989e;
+}
+
+@keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-8px); opacity: 1; }
+}
+
+/* ========== SCROLLBAR (Apple Style) ========== */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+}
+
+body.light-mode ::-webkit-scrollbar-thumb {
+    background: #c6c6c8;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+    background: #48484a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #8e8e93;
+}
+
+/* ========== MARKDOWN CONTENT ========== */
+.markdown-content {
+    line-height: 1.5;
+}
+
+.markdown-content h1, 
+.markdown-content h2, 
+.markdown-content h3 {
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.markdown-content p {
+    margin-bottom: 0.5rem;
+}
+
+.markdown-content ul, 
+.markdown-content ol {
+    margin-left: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.markdown-content a {
+    color: #007aff;
+    text-decoration: none;
+}
+
+.markdown-content a:hover {
+    text-decoration: underline;
+}
+
+.markdown-content pre {
+    padding: 12px;
+    border-radius: 12px;
+    overflow-x: auto;
+    margin: 10px 0;
+}
+
+body.light-mode .markdown-content pre {
+    background: #f5f5f7;
+}
+
+body.dark-mode .markdown-content pre {
+    background: #2c2c2e;
+}
+
+.markdown-content code {
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size: 0.9em;
+}
+
+/* ========== MODAL (Apple Sheet Style) ========== */
+.modal-overlay {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.modal-content {
+    border-radius: 28px;
+    animation: modalSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========== TELEGRAM STATUS COLORS ========== */
+#voiceStatus.search { color: #3b82f6; }
+#voiceStatus.local { color: #34c759; }
+#voiceStatus.telegram { color: #26a5e4; }
+#voiceStatus.error { color: #ff3b30; }
+#voiceStatus.success { color: #34c759; }
+
+/* ========== RESPONSIVE ADJUSTMENTS ========== */
+@media (max-width: 768px) {
+    .glass {
+        border-radius: 20px;
+    }
+    
+    .chat-bubble-user,
+    .chat-bubble-assistant {
+        max-width: 90%;
+        padding: 10px 14px;
+    }
+    
+    .btn-primary {
+        padding: 10px 16px;
+    }
+}
+
+/* ========== SMOOTH TRANSITIONS FOR ALL INTERACTIVE ELEMENTS ========== */
+button, 
+.glass, 
+.chat-bubble-user, 
+.chat-bubble-assistant {
+    transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* ========== HEADER ICON ========== */
+.w-10.h-10.rounded-full {
+    background: linear-gradient(135deg, #007aff, #5856d6);
+}

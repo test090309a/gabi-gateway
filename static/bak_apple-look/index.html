@@ -12,7 +12,7 @@
 <body class="light-mode">
     <div class="container mx-auto px-4 py-6 max-w-7xl">
         <!-- Header -->
-        <div class="glass rounded-2xl shadow-xl mb-5 p-5 fixed-header">
+        <div class="glass rounded-2xl shadow-xl mb-5 p-5">
             <div class="flex items-center justify-between flex-wrap gap-3">
                 <div class="flex items-center space-x-3">
                     <div class="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-r from-blue-500 to-indigo-600">
@@ -56,106 +56,104 @@
             </div>
         </div>
         
-<!-- Main Grid - Sidebar immer sichtbar -->
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-5">
-<!-- Sidebar Bereich -->
-<div class="lg:col-span-1">
-    <div id="sidebarContent" class="glass rounded-2xl shadow-xl p-4 sticky top-6" style="top: 10vh;">
-        <!-- Sidebar Inhalt -->
-        <div class="space-y-1">
-            <button onclick="showHelp()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
-                <i class="fas fa-question-circle text-blue-500 w-5"></i>
-                <span class="text-sm">Hilfe</span>
-            </button>
-            <button onclick="clearChat()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
-                <i class="fas fa-trash-alt text-red-500 w-5"></i>
-                <span class="text-sm">Chat löschen</span>
-            </button>
-            <button onclick="exportChat()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
-                <i class="fas fa-download text-green-500 w-5"></i>
-                <span class="text-sm">Exportieren</span>
-            </button>
-            <button onclick="showStatus()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
-                <i class="fas fa-chart-line text-purple-500 w-5"></i>
-                <span class="text-sm">System Status</span>
-            </button>
-            <button id="telegramModalBtn" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
-                <i class="fab fa-telegram text-blue-500 w-5"></i>
-                <span class="text-sm">Telegram</span>
-                <span id="telegramBadge" class="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5 hidden">0</span>
-            </button>
-        </div>
-        
-        <hr class="my-4 border-gray-200 dark:border-gray-700">
-        
-        <h3 class="font-medium text-sm mb-2 flex items-center">
-            <i class="fas fa-image mr-2 text-pink-500"></i>
-            Bildanalyse
-        </h3>
-        <label class="w-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 py-2 rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer text-sm">
-            <i class="fas fa-upload"></i>
-            <span>Hochladen</span>
-            <input type="file" id="imageUpload" accept="image/*" class="hidden">
-        </label>
-        
-        <hr class="my-4 border-gray-200 dark:border-gray-700">
-        
-        <div class="text-xs text-center opacity-50">
-            <i class="fas fa-brain"></i> Corpus Callosum
-        </div>
-    </div>
-</div>
-    
-    <!-- Chat Area -->
-    <div class="lg:col-span-3">
-        <div class="glass rounded-2xl shadow-xl flex flex-col h-[calc(100vh-160px)] overflow-hidden" style="min-height: 49vh;">
-            <!-- Chat Messages -->
-            <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-3">
-                <div class="text-center opacity-50 py-12">
-                    <i class="fas fa-comment-dots text-4xl mb-2"></i>
-                    <p class="text-sm">Willkommen bei GABI</p>
-                    <p class="text-xs mt-1">Sage "Hey GABI" für Sprachsteuerung</p>
+        <!-- Main Grid - Sidebar immer sichtbar -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-5">
+            <!-- Sidebar - Immer sichtbar -->
+            <div class="lg:col-span-1">
+                <div class="glass rounded-2xl shadow-xl p-4 sticky top-6">
+                    <div class="space-y-1">
+                        <button onclick="showHelp()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
+                            <i class="fas fa-question-circle text-blue-500 w-5"></i>
+                            <span class="text-sm">Hilfe</span>
+                        </button>
+                        <button onclick="clearChat()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
+                            <i class="fas fa-trash-alt text-red-500 w-5"></i>
+                            <span class="text-sm">Chat löschen</span>
+                        </button>
+                        <button onclick="exportChat()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
+                            <i class="fas fa-download text-green-500 w-5"></i>
+                            <span class="text-sm">Exportieren</span>
+                        </button>
+                        <button onclick="showStatus()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
+                            <i class="fas fa-chart-line text-purple-500 w-5"></i>
+                            <span class="text-sm">System Status</span>
+                        </button>
+                        <button id="telegramModalBtn" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 transition flex items-center space-x-3">
+                            <i class="fab fa-telegram text-blue-500 w-5"></i>
+                            <span class="text-sm">Telegram</span>
+                            <span id="telegramBadge" class="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5 hidden">0</span>
+                        </button>
+                    </div>
+                    
+                    <hr class="my-4 border-gray-200 dark:border-gray-700">
+                    
+                    <h3 class="font-medium text-sm mb-2 flex items-center">
+                        <i class="fas fa-image mr-2 text-pink-500"></i>
+                        Bildanalyse
+                    </h3>
+                    <label class="w-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 py-2 rounded-xl transition flex items-center justify-center space-x-2 cursor-pointer text-sm">
+                        <i class="fas fa-upload"></i>
+                        <span>Hochladen</span>
+                        <input type="file" id="imageUpload" accept="image/*" class="hidden">
+                    </label>
+                    
+                    <hr class="my-4 border-gray-200 dark:border-gray-700">
+                    
+                    <div class="text-xs text-center opacity-50">
+                        <i class="fas fa-brain"></i> Corpus Callosum
+                    </div>
                 </div>
             </div>
             
-            <!-- Scroll Button wird von script.js erstellt -->
-            
-            <!-- Input Area -->
-            <div class="input-area border-t p-4">
-                <!-- Wake Word Status Bar -->
-                <div class="flex items-center justify-between mb-3">
-                    <div class="flex items-center space-x-3">
-                        <div id="wakeIndicator" class="w-2.5 h-2.5 rounded-full bg-gray-400"></div>
-                        <span id="wakeWordStatus" class="text-xs opacity-70">🎤 Bereit</span>
+            <!-- Chat Area -->
+            <div class="lg:col-span-3">
+                <div class="glass rounded-2xl shadow-xl flex flex-col h-[calc(100vh-160px)] overflow-hidden">
+                    <!-- Chat Messages -->
+                    <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-3">
+                        <div class="text-center opacity-50 py-12">
+                            <i class="fas fa-comment-dots text-4xl mb-2"></i>
+                            <p class="text-sm">Willkommen bei GABI</p>
+                            <p class="text-xs mt-1">Sage "Hey GABI" für Sprachsteuerung</p>
+                        </div>
                     </div>
-                    <div class="flex items-center space-x-2">
-                        <button id="wakeToggleBtn" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition">
-                            <i class="fas fa-microphone-alt mr-1"></i>
-                            <span id="wakeToggleText">Zuhören aus</span>
-                        </button>
-                        <button id="voiceBtn" class="px-3 py-1 rounded-full text-xs font-medium bg-green-500 hover:bg-green-600 text-white transition">
-                            <i class="fas fa-microphone mr-1"></i>
-                            <span>Mikrofon</span>
-                        </button>
+                    
+                    <!-- Input Area mit Wake Word Status -->
+                    <div class="input-area border-t p-4">
+                        <!-- Wake Word Status Bar -->
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-3">
+                                <div id="wakeIndicator" class="w-2.5 h-2.5 rounded-full bg-gray-400"></div>
+                                <span id="wakeWordStatus" class="text-xs opacity-70">🎤 Bereit</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button id="wakeToggleBtn" class="px-3 py-1 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                                    <i class="fas fa-microphone-alt mr-1"></i>
+                                    <span id="wakeToggleText">Zuhören aus</span>
+                                </button>
+                                <button id="voiceBtn" class="px-3 py-1 rounded-full text-xs font-medium bg-green-500 hover:bg-green-600 text-white transition">
+                                    <i class="fas fa-microphone mr-1"></i>
+                                    <span>Mikrofon</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Text Input -->
+                        <div class="flex space-x-2">
+                            <textarea id="messageInput" rows="1" placeholder="Nachricht eingeben... (Enter sendet)" 
+                                class="flex-1 px-4 py-2 border rounded-xl resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent text-sm"></textarea>
+                            <button id="sendBtn" class="btn-primary text-white px-5 py-2 rounded-xl transition text-sm">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                            <button id="stopBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl transition hidden">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                        </div>
+                        <p id="voiceStatus" class="text-xs opacity-50 mt-2 text-center"></p>
                     </div>
                 </div>
-                
-                <!-- Text Input -->
-                <div class="flex space-x-2">
-                    <textarea id="messageInput" rows="1" placeholder="Nachricht eingeben... (Enter sendet)" 
-                        class="flex-1 px-4 py-2 border rounded-xl resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent text-sm"></textarea>
-                    <button id="sendBtn" class="btn-primary text-white px-5 py-2 rounded-xl transition text-sm">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                    <button id="stopBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl transition hidden">
-                        <i class="fas fa-stop"></i>
-                    </button>
-                </div>
-                <p id="voiceStatus" class="text-xs opacity-50 mt-2 text-center"></p>
             </div>
         </div>
     </div>
-</div>
     
     <!-- Settings Modal -->
     <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden modal-overlay">
@@ -213,8 +211,7 @@
             </div>
         </div>
     </div>
-<!-- Weil AIDER sonst token-limits überschreitet -->
-<script src="/static/script1.js"></script>
-<script src="/static/script2.js"></script>
+
+<script src="/static/script.js"></script>
 </body>
 </html>

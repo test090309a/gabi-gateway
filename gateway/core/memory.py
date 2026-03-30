@@ -49,8 +49,8 @@ class ChatMemory:
         self.user_notes = self._load_notes()
         
         # Konfigurierbare Grenzen
-        self.max_memory_entries = 100
-        self.max_memory_size = 10000
+        self.max_memory_entries = 200      # von 100 erhöht
+        self.max_memory_size = 50000       # von 10000 erhöht
         
         # Verzeichnisse erstellen
         os.makedirs(CHAT_ARCHIVE_DIR, exist_ok=True)
@@ -294,10 +294,10 @@ class ChatMemory:
         while True:
             try:
                 inactive_time = (datetime.now() - self.last_activity).total_seconds()
-                if inactive_time > 600 and not self.is_exploring:  # 10 Minuten Inaktivität
+                if inactive_time > 1800 and not self.is_exploring:  # von 600 ( 10 Minuten Inaktivität) auf 1800
                     self.run_sleep_phase(reason=f"idle-{int(inactive_time)}s")
                     await self._explore_system()
-                await asyncio.sleep(300)  # Alle 5 Minuten prüfen
+                await asyncio.sleep(900)  # von 300 (Alle 5 Minuten prüfen) auf 900 
             except Exception as e:
                 logger.error(f"Auto-Exploration Fehler: {e}")
                 await asyncio.sleep(60)

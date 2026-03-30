@@ -6,6 +6,7 @@ import json
 import uuid
 import random
 import logging
+import base64
 import requests
 from datetime import datetime
 from pathlib import Path

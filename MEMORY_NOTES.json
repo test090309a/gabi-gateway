@@ -1,0 +1,117 @@
+[
+  {
+    "id": "20260216_171929_488488",
+    "text": "es ist das jahr 2026!",
+    "timestamp": "2026-02-16T17:19:29.488488",
+    "source": "command"
+  },
+  {
+    "id": "20260217_002414_923012",
+    "text": "dieser befehl geht nicht: /shell python tools/format.py --prompt \"Wie hast du dein Wissen über Jugendstil aufgebaut?\"",
+    "timestamp": "2026-02-17T00:24:14.923012",
+    "source": "command"
+  },
+  {
+    "id": "20260217_002510_454789",
+    "text": "Mein Wissen basiert auf strukturiertem, mehrschichtigen Lernen",
+    "timestamp": "2026-02-17T00:25:10.454789",
+    "source": "command"
+  },
+  {
+    "id": "20260217_002540_117630",
+    "text": "Jugendstil ist ein Kunststil aus dem späten 19. und frühen 20. Jahrhundert. Seine drei Hauptmerkmale sind: 1. Fließende, organische Linien, inspiriert von Natur und Pflanzen. 2. Reichhaltige, kräftige Farben und stilisierte Blumenmotive. 3. Ein Fokus auf Jugendlichkeit, Romantik und harmonische Ästhetik.",
+    "timestamp": "2026-02-17T00:25:40.117630",
+    "source": "command"
+  },
+  {
+    "id": "20260217_002928_147489",
+    "text": "so wird eine datei erstellt mit inhalt: /shell e​cho Hello World > test.txt",
+    "timestamp": "2026-02-17T00:29:28.147489",
+    "source": "command"
+  },
+  {
+    "id": "20260217_184853_174337",
+    "text": "\"Aktuelles Konto: Ollama-integriertes Gateway, Windows 🪟, SAM-860/LFM2:1.2b, Shell-Befehle für lokale Ausführung.\"",
+    "timestamp": "2026-02-17T18:48:53.174337",
+    "source": "command"
+  },
+  {
+    "id": "20260217_193335_780463",
+    "text": "GABI: Ja, korrekt – wir nutzen bereits tools/web_search.py für unsere internen Suchanfragen. Mit diesem Tool suchen wir gezielt nach strukturierten Informationen zu aktuellen Projekten, einschließlich Fortschrittsständen, Verantwortlichkeiten, Deadlines und potenziellen Hindernissen. Das hilft uns, den Überblick zu behalten und schnell Entscheidungen zu treffen. Falls du möchtest, kann ich sofort eine Suchabfrage starten – sag einfach Bescheid, was du wissen möchtest!",
+    "timestamp": "2026-02-17T19:33:35.780463",
+    "source": "command"
+  },
+  {
+    "id": "20260217_204701_237324",
+    "text": "joki geburtstag ist am 04. mai.",
+    "timestamp": "2026-02-17T20:47:01.237324",
+    "source": "command"
+  },
+  {
+    "id": "20260217_221120_673087",
+    "text": "ich benenne dich hiermit um in ALEXANDRA.",
+    "timestamp": "2026-02-17T22:11:20.673087",
+    "source": "command"
+  },
+  {
+    "id": "20260218_002646_526864",
+    "text": "joki ist der admin auf der kiste.",
+    "timestamp": "2026-02-18T00:26:46.526864",
+    "source": "command"
+  },
+  {
+    "id": "20260218_002658_012174",
+    "text": "justin ist sein bruder.",
+    "timestamp": "2026-02-18T00:26:58.012174",
+    "source": "command"
+  },
+  {
+    "id": "20260218_154910_254558",
+    "text": "/shell python -c \"import pyautogui; pyautogui.moveTo(500, 500, duration=3); print('Maus bewegt!')\" damit bewegst du die maus.",
+    "timestamp": "2026-02-18T15:49:10.254558",
+    "source": "command"
+  },
+  {
+    "id": "20260321_013049_180221",
+    "text": "alexandra gibt es nicht!",
+    "timestamp": "2026-03-21T01:30:49.180221",
+    "source": "command"
+  },
+  {
+    "id": "20260321_013146_242403",
+    "text": "du antwortest immer in deutsch.",
+    "timestamp": "2026-03-21T01:31:46.242403",
+    "source": "command",
+    "confirmed_at": "2026-03-21T01:32:14.927066"
+  },
+  {
+    "id": "20260322_085412_749278",
+    "text": "Meine Adresse Lerchenfelderstrasse 6/6",
+    "timestamp": "2026-03-22T08:54:12.749278",
+    "source": "command"
+  },
+  {
+    "id": "20260322_130534_193694",
+    "text": "telegram kann noch keine url analysieren. autonome navigation fehlgeschlagen",
+    "timestamp": "2026-03-22T13:05:34.193694",
+    "source": "command"
+  },
+  {
+    "id": "20260324_232504_124489",
+    "text": "ich dachte es war die henkel he 178?",
+    "timestamp": "2026-03-24T23:25:04.124489",
+    "source": "command"
+  },
+  {
+    "id": "20260325_074623_456845",
+    "text": "Testnotiz",
+    "timestamp": "2026-03-25T07:46:23.456845",
+    "source": "command"
+  },
+  {
+    "id": "20260326_064752_969703",
+    "text": "joki nickerl",
+    "timestamp": "2026-03-26T06:47:52.969703",
+    "source": "command"
+  }
+]

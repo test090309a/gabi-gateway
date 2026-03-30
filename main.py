@@ -403,16 +403,25 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     import argparse
-    
-    parser = argparse.ArgumentParser(description="GABI Gateway Server")
+    import os
+
+    parser = argparse.ArgumentParser(description="🌉 GABI Gateway Server")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     args = parser.parse_args()
-    
+
     # Stelle sicher, dass das static-Verzeichnis existiert
     static_dir.mkdir(exist_ok=True)
-    
+
+    # Fenster‑Titel im Terminal setzen
+    title = f"🌉 Gabi-Gateway (http://{args.host}:{args.port})"
+    if os.name == "nt":  # Windows
+        os.system(f"title {title}")
+    else:
+        # ANSI‑Sequenz für Tab‑Titel (Linux/macOS/Terminals)
+        print(f"\033]0;{title}\007", end="")
+
     uvicorn.run(
         "gateway.main:app",
         host=args.host,

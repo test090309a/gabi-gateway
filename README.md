@@ -133,4 +133,3 @@ MIT License
 🤝 Contributing
 Issues und Pull Requests sind willkommen!
 
-🙏 Credits

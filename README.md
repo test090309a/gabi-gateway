@@ -10,18 +10,16 @@
 
 ## ✨ Features
 
-| Feature | Beschreibung |
-|---------|--------------|
-| 🎤 **Sprachsteuerung** | "Hey GABI" aktiviert Whisper-Transkription |
-| 🌐 **Web-Suche** | Headless DuckDuckGo Suche mit SmartSoMAgent |
-| 🎨 **ComfyUI Integration** | Bildgenerierung mit eigenen Workflows |
-| 📷 **Vision & Webcam** | Bildanalyse mit Vision-Modellen + YOLO Objekterkennung |
-| 📱 **Telegram Bot** | Chat über Telegram mit allen GABI-Funktionen |
-| 📧 **Gmail Integration** | E-Mails lesen, senden, beantworten |
-| 💻 **Shell & GUI Control** | Systembefehle und GUI-Automatisierung |
-| 🧠 **Memory System** | Notizen, Konversationsverlauf, Chat-Archive |
-| 🔧 **Corpus Callosum** | Hemisphären-Routing für optimale Modellauswahl |
-| ⚡ **Hot-Reload** | Dynamisches Laden von Integrationen |
+- 🎤 **Sprachsteuerung** - "Hey GABI" aktiviert Whisper-Transkription
+- 🌐 **Web-Suche** - Headless DuckDuckGo Suche mit SmartSoMAgent
+- 🎨 **ComfyUI Integration** - Bildgenerierung mit eigenen Workflows
+- 📷 **Vision & Webcam** - Bildanalyse mit Vision-Modellen + YOLO Objekterkennung
+- 📱 **Telegram Bot** - Chat über Telegram mit allen GABI-Funktionen
+- 📧 **Gmail Integration** - E-Mails lesen, senden, beantworten
+- 💻 **Shell & GUI Control** - Systembefehle und GUI-Automatisierung
+- 🧠 **Memory System** - Notizen, Konversationsverlauf, Chat-Archive
+- 🔧 **Corpus Callosum** - Hemisphären-Routing für optimale Modellauswahl
+- ⚡ **Hot-Reload** - Dynamisches Laden von Integrationen
 
 ---
 
@@ -124,7 +122,7 @@ GUI-Steuerung	PyAutoGUI
 Telegram	python-telegram-bot
 Gmail/Calendar	Google APIs
 📝 Lizenz
-MIT License - siehe LICENSE Datei
+MIT License
 
 🤝 Contributing
 Issues und Pull Requests sind willkommen!

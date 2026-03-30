@@ -115,7 +115,6 @@ gabi-gateway/
 
 
 🛠️ Technologien
-
 - **Backend:** FastAPI, Uvicorn
 - **KI:** Ollama (Llama, Qwen, Vision-Modelle)
 - **Spracherkennung:** Whisper.cpp

@@ -112,9 +112,9 @@ gabi-gateway/
 ├── screenshots/            # Screenshots und generierte Bilder
 └── chat_archives/          # Chat-Archive
 
----
 
-## 🛠️ Technologien
+
+🛠️ Technologien
 
 - **Backend:** FastAPI, Uvicorn
 - **KI:** Ollama (Llama, Qwen, Vision-Modelle)

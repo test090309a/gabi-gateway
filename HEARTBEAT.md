@@ -1,18 +1,16 @@
 # GABI Heartbeat & Monitoring
-## Aktueller Status (30.03.2026 09:20)
+## Aktueller Status (30.03.2026 22:22)
 | Dienst | Status | Details |
 |--------|--------|---------|
 | FastAPI | 🟢 Online | Port 8000 |
-| Ollama | 🟢 Connected | 0 Modelle |
+| Ollama | 🟢 Connected | 56 Modelle |
 | Auto-Exploration | 🟢 Aktiv | Letzte: 2026-03-30 00:01:43 |
-| Chat-Archiv | 🟢 Bereit | 61 Archive |
+| Chat-Archiv | 🟢 Bereit | 4 Archive |
 ## System-Ressourcen
-- **Speicher frei**: 432.0 GB
+- **Speicher frei**: 431.98 GB
 - **Betriebssystem**: Windows 11
 - **Letzte Aktivität**: vor 0 Min.
-- **Chat-Verlauf**: 2 Austausche
+- **Chat-Verlauf**: 1 Austausche
 ## Letzte Aktivitäten
-- 👤 User: hey
-- 🤖 GABI: Hallo! Wie kann ich dir helfen?
-- 👤 User: heute ist ein schöner montagmorgen im märz 2026
-- 🤖 GABI: Guten Morgen! Ja, es ist heute Montag, den 7. März...
+- 👤 User: oder mensch
+- 🤖 GABI: Ich bin GABI, ein KI-Assistent auf Windows. Also b...

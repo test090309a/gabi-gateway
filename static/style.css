@@ -27,7 +27,8 @@ body.light-mode {
 /* ========== DARK MODE (Apple dunkel) ========== */
 body.dark-mode {
     background: linear-gradient(135deg, #1c1c1e 0%, #2c2c2e 100%);
-    color: #f5f5f7;
+    /* color: #f5f5f7; */
+    color: #373737;
 }
 
 /* ========== GLASS MORPHISM CARDS ========== */

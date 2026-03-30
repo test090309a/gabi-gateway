@@ -408,18 +408,15 @@ async def chat_with_gabi(request: ChatRequest, token: str = Header(None, alias="
 
         # ===== PRÜFE AUF TELEGRAM PREFIX =====
         if user_message.startswith("__TELEGRAM__"):
-            # Telegram-Nachricht senden
             telegram_msg = user_message.replace("__TELEGRAM__", "").strip()
-            # ... Telegram senden Code ...
             return
 
         # ===== PRÜFE AUF SEARCH PREFIX =====
         if user_message.startswith("__SEARCH__"):
-            # Entferne Prefix und führe Web-Suche aus
             search_query = user_message.replace("__SEARCH__", "").strip()
             user_message = search_query
-            # Force Web-Suche
             intent_result = {"intent": "som_search", "confidence": 1.0, "query": search_query}
+            should_search = True  # Force search
 
         # ===== 1. DIREKTE BEFEHLE =====
         if user_message.startswith('/'):
@@ -444,8 +441,7 @@ async def chat_with_gabi(request: ChatRequest, token: str = Header(None, alias="
         intent_result = _classify_intent_enhanced(user_message)
         logger.info(f"🎯 Intent erkannt: {intent_result['intent']} (Confidence: {intent_result['confidence']:.2f})")
 
-
-        # ===== NEU: PRÜFE OB WIRKLICH INTERNET-SUCHE GEWÜNSCHT IST =====
+        # ===== PRÜFE OB INTERNET-SUCHE GEWÜNSCHT IST (MUSS VOR DER VERWENDUNG DEFINIERT WERDEN) =====
         EXPLICIT_SEARCH_KEYWORDS = [
             "suche im internet", "such im internet", "google nach", 
             "web suche", "im internet suchen", "finde im internet",
@@ -453,14 +449,22 @@ async def chat_with_gabi(request: ChatRequest, token: str = Header(None, alias="
         ]
 
         is_explicit_search = any(kw in user_message.lower() for kw in EXPLICIT_SEARCH_KEYWORDS)
+        
+        # Prüfe auch auf "google" am Anfang der Nachricht oder als eigenständiges Wort
+        msg_lower = user_message.lower()
+        words = msg_lower.split()
+        if "google" in words or msg_lower.startswith("google"):
+            is_explicit_search = True
+            logger.info(f"🔍 Google als Such-Trigger erkannt: {user_message}")
 
-        # Wetter, Kino, Nachrichten sind auch Suchanfragen (können aber auch lokal sein)
-        is_weather = "wetter" in user_message.lower()
-        is_movies = "kino" in user_message.lower() or "film" in user_message.lower()
-        is_news = "nachrichten" in user_message.lower()
+        # Wetter, Kino, Nachrichten sind auch Suchanfragen
+        is_weather = "wetter" in msg_lower
+        is_movies = "kino" in msg_lower or "film" in msg_lower
+        is_news = "nachrichten" in msg_lower
 
-        # Nur wenn explizit gesucht wird ODER es sich um Wetter/Kino/Nachrichten handelt
         should_search = is_explicit_search or is_weather or is_movies or is_news
+        
+        logger.info(f"🔍 SEARCH CHECK: explicit={is_explicit_search}, weather={is_weather}, movies={is_movies}, news={is_news}, should_search={should_search}")
 
         
         # ===== 4. SoM INTENTS AUSFÜHREN =====
@@ -664,12 +668,19 @@ async def chat_with_gabi(request: ChatRequest, token: str = Header(None, alias="
         
         # Prüfe ob Brain eine Suche ausgeführt hat, obwohl der User keine wollte
         EXPLICIT_SEARCH_KEYWORDS = [
-            "suche nach", "such nach", "google", "such mir", "recherchiere",
-            "finde im internet", "web search", "im internet suchen",
+            "suche nach", "such nach", "google", "google nach", "such mir", "recherchiere",
+            "finde im internet", "web search", "im internet suchen", "web suche"
         ]
         _msg_lower = user_message.lower()
         _brain_did_search = detected_type == "search" or routing_result.get("tool_used") == "web_search"
         _user_wanted_search = any(kw in _msg_lower for kw in EXPLICIT_SEARCH_KEYWORDS)
+        
+        # NEU: Prüfe auch auf "google" als eigenständiges Wort am Anfang
+        if not _user_wanted_search:
+            words = _msg_lower.split()
+            if "google" in words or _msg_lower.startswith("google"):
+                _user_wanted_search = True
+                logger.info(f"🔍 Google als Such-Trigger erkannt: {user_message}")
         
         if _brain_did_search and not _user_wanted_search:
             logger.info(f"🚫 Brain-Suche ignoriert (kein Such-Keyword)")

@@ -69,11 +69,41 @@ class GabiVision:
             if not cap.isOpened():
                 return {"success": False, "error": "Webcam not available"}
             
-            ret, frame = cap.read()
+            # Setze Kamera-Eigenschaften für bessere Kompatibilität
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            
+            # Warte auf Kamera-Initialisierung
+            import time
+            time.sleep(1.0)
+            
+            # Lese mehrere Frames (die ersten 1-2 sind oft schwarz)
+            ret = False
+            frame = None
+            
+            # Wirf die ersten 2 Frames weg
+            for _ in range(2):
+                cap.read()
+                time.sleep(0.1)
+            
+            # Lese dann einen gültigen Frame
+            for i in range(5):
+                ret, frame = cap.read()
+                if ret and frame is not None:
+                    # Prüfe ob das Bild nicht komplett schwarz ist
+                    if frame.max() > 0:
+                        logger.info(f"✅ Gültiges Bild nach {i+1} Versuchen")
+                        break
+                time.sleep(0.2)
+            
             cap.release()
             
-            if not ret:
+            if not ret or frame is None:
                 return {"success": False, "error": "Failed to capture frame"}
+            
+            # Prüfe ob das Bild immer noch schwarz ist
+            if frame.max() == 0:
+                return {"success": False, "error": "Webcam returns black image (possibly blocked or in use)"}
             
             # Save image
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -33,7 +33,8 @@ const wakeToggleText = document.getElementById('wakeToggleText');
 const themeToggle = document.getElementById('themeToggle');
 const themeIcon = document.getElementById('themeIcon');
 
-// API Config
+// API Config - einheitlich mit Bearer Token
+const API_BEARER_TOKEN = 'sysop';  // Konsistenter Bearer Token
 let apiKey = localStorage.getItem('apiKey') || 'sysop';
 let ollamaUrl = localStorage.getItem('ollamaUrl') || 'http://localhost:11434';
 let defaultModel = localStorage.getItem('defaultModel') || 'llama2:latest';
@@ -60,7 +61,7 @@ themeToggle.addEventListener('click', () => {
 });
 
 // ========== HEADER SIDEBAR TOGGLE (fa-bars) ==========
-const headerToggleBtn = document.getElementById('sidebarToggle'); // Der fa-bars Button im Header
+const headerToggleBtn = document.getElementById('sidebarToggle');
 const sidebarContent = document.getElementById('sidebarContent');
 const sidebarCol = document.querySelector('.lg\\:col-span-1');
 const chatCol = document.querySelector('.lg\\:col-span-3');
@@ -69,7 +70,6 @@ let sidebarVisible = true;
 
 function toggleSidebar() {
     if (sidebarVisible) {
-        // Sidebar ausblenden
         sidebarContent.classList.add('sidebar-collapsed');
         if (sidebarCol) {
             sidebarCol.classList.add('sidebar-collapsed');
@@ -80,7 +80,6 @@ function toggleSidebar() {
         }
         sidebarVisible = false;
     } else {
-        // Sidebar einblenden
         sidebarContent.classList.remove('sidebar-collapsed');
         if (sidebarCol) {
             sidebarCol.classList.remove('sidebar-collapsed');
@@ -97,7 +96,6 @@ if (headerToggleBtn) {
     headerToggleBtn.addEventListener('click', toggleSidebar);
 }
 
-// Sidebar Toggle Button in Header einfügen
 const headerDiv = document.querySelector('.glass .flex.items-center.justify-between');
 if (headerDiv && !document.getElementById('sidebarToggle')) {
     const toggleBtn = document.createElement('button');
@@ -109,17 +107,14 @@ if (headerDiv && !document.getElementById('sidebarToggle')) {
 }
 
 // ========== SCROLL BUTTON ==========
-// Globale Variablen für Scroll-Button
 let scrollBtn = null;
 let scrollBtnInner = null;
 let scrollIcon = null;
 
-// 1. Chat-Container finden
 const chatContainer = document.querySelector('.lg\\:col-span-3 .glass');
 if (!chatContainer) {
     console.warn('Chat-Container nicht gefunden');
 } else {
-    // 2. Button erstellen (initial versteckt)
     const scrollButton = document.createElement('div');
     scrollButton.id = 'scrollButton';
     scrollButton.className = 'absolute bottom-4 right-4 z-20';
@@ -130,46 +125,31 @@ if (!chatContainer) {
     `;
     chatContainer.appendChild(scrollButton);
     
-    // 3. Button-Elemente referenzieren (global)
     scrollBtn = document.getElementById('scrollButton');
     scrollBtnInner = scrollBtn ? scrollBtn.querySelector('button') : null;
     scrollIcon = document.getElementById('scrollIcon');
     
-    // 4. Fester Event-Listener
     if (scrollBtnInner) {
         scrollBtnInner.addEventListener('click', function() {
             if (!chatMessages) return;
-            
             const isAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 50;
-            
             if (isAtBottom) {
-                // Ganz unten -> nach oben scrollen
                 chatMessages.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
-                // Nicht ganz unten -> nach unten scrollen
                 chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
             }
         });
     }
     
-    // 5. Funktion zum Aktualisieren
     function updateScrollButton() {
         if (!chatMessages || !scrollBtn || !scrollBtnInner) return;
-        
         const isAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 50;
-        
-        // Button verstecken wenn ganz unten ODER keine Nachrichten (nur Willkommen)
         const hasMessages = chatMessages.children.length > 1;
-        
         if (isAtBottom || !hasMessages) {
             scrollBtn.classList.add('hidden');
             return;
         }
-        
-        // Button anzeigen
         scrollBtn.classList.remove('hidden');
-        
-        // Icon setzen: oben -> Pfeil nach unten, sonst Pfeil nach oben
         if (chatMessages.scrollTop < 50) {
             scrollIcon.className = 'fas fa-arrow-down';
         } else {
@@ -177,13 +157,10 @@ if (!chatContainer) {
         }
     }
     
-    // 6. Event-Listener
     if (chatMessages) {
         chatMessages.addEventListener('scroll', updateScrollButton);
     }
     window.addEventListener('resize', updateScrollButton);
-    
-    // 7. Initial prüfen
     setTimeout(updateScrollButton, 500);
 }
 
@@ -380,7 +357,7 @@ async function sendMessage() {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-API-Key': apiKey
+                        'Authorization': 'Bearer sysop'  // Geändert!
                     },
                     body: JSON.stringify({ message: telegramMessage })
                 });
@@ -447,7 +424,7 @@ async function sendMessage() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'token': apiKey
+                'token': apiKey  // token für Chat!
             },
             body: JSON.stringify({
                 message: msgToSend,
@@ -517,3 +494,19 @@ function addMessage(content, role, thinkingSteps = null, elapsedTime = null, mod
     div.scrollIntoView({ behavior: 'smooth', block: 'end' });
     setTimeout(updateScrollButton, 100);
 }
+
+// Mache WakeWord global verfügbar
+if (typeof WakeWord !== 'undefined') {
+    window.WakeWord = WakeWord;
+    console.log("✅ WakeWord global gemacht");
+}
+
+// Starte automatisch wenn die Seite geladen ist
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof WakeWord !== 'undefined') {
+        const wakeWord = new WakeWord();
+        window.wakeWord = wakeWord;
+        wakeWord.start();
+        console.log("✅ WakeWord automatisch gestartet");
+    }
+});

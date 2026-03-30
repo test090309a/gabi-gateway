@@ -409,3 +409,182 @@ GABI hat das System erkundet:
 **GABI**: Guten Morgen! Ja, es ist heute Montag, den 7. März 2026, und die Sonne scheint already bright and warm in the sky. How can I help you today?
 **Thema**: allgemein
 ---
+
+## 2026-03-30 20:01
+**User**: hey
+**GABI**: Hallo! Wie kann ich dir helfen?
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:01
+**User**: wie gehts
+**GABI**: Mir geht es gut, danke! Wie kann ich dir heute helfen?
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:02
+**User**: turboqwen
+**GABI**: Das ist ein neues Wort für mich. Könntest du mir sagen, was "Turboqwen" bedeutet?
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:15
+**User**: im internet
+**GABI**: Das ist ein Wissensfragen!
+
+Der Internet ist ein weltweites Netzwerk von Computern und Servern, das es ermöglicht, Informationen überall auf der Welt auszutauschen. Es besteht aus einem komplexen Syst...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:18
+**User**: hey gab
+**GABI**: Hallo Gabi!
+
+Du hast Recht, es gibt eine kleine Klarstellung bei der Frage "im Internet" bezüglich der Verwendung von Shell-Befehlen. Du fragtest nach Shell-Befehlen, die der Nutzer explizit macht, ab...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:19
+**User**: nach guten
+**GABI**: Ich denke, ich verstehe jetzt. Der Nutzer möchte eine Liste von Dingen sehen, die gut sind.
+
+**
+```
+❌ Fehler (Code 1):
+```
+Datei nicht gefunden
+
+```
+```
+
+Dieser Shell-Befehl zeigt alle Dateien an, die...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:27
+**User**: Egal wie,  nach Kurten.
+**GABI**: Ich verstehe jetzt. Der Nutzer möchte einen Shell-Befehl für die Ausführung von "Kurten" sehen.
+
+**/shell**
+```
+dir Kurten*
+```
+
+Dieser Befehl listet alle Dateien und Ordner, die mit dem Namen "Kurten...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:27
+**User**: Wer ist Stephen Hawking?
+**GABI**: Stephen Hawking war ein britischer Physiker und Kosmologe, der weltweit für seine bahnbrechenden Arbeiten zur theoretischen Physik und Kosmologie bekannt ist. Er gilt als einer der einflussreichsten W...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:32
+**User**: lkw
+**GABI**: Der Nutzer möchte wahrscheinlich ein LKW (Lastwagen) sehen. Ich verstehe!
+
+**/shell**
+```
+dir *LKW*
+```
+
+Dieser Befehl listet alle Dateien und Ordner, die mit dem Namen "LKW" beginnen.
+
+Oder, wenn du ...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:37
+**User**: Ich glaube, ich  nach Gurken.
+**GABI**: Der Nutzer möchte wahrscheinlich eine Liste von Dingen sehen, die mit "Gurken" zu tun haben.
+
+**/shell**
+```
+dir *Gurke*
+```
+
+Dieser Befehl listet alle Dateien und Ordner, die mit dem Namen "Gurke" be...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:48
+**User**: Stephen Hawking
+**GABI**: Der Nutzer möchte Informationen über Stephen Hawking haben.
+
+Ich habe bereits ein paar Minuten zuvor eine umfassende Antwort über Stephen Hawking gegeben. Wenn du mehr über ihn erfahren möchtest oder ...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:49
+**User**: google now stephen hawking
+**GABI**: Der Nutzer möchte wahrscheinlich Informationen über Stephen Hawking über Google abrufen.
+
+**/shell**
+```
+start https://www.google.com/search?q=Stephen+Hawking
+```
+
+Dieser Befehl öffnet den Browser und...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:56
+**User**: hey
+**GABI**: Hallo! Wie kann ich Ihnen helfen?
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:56
+**User**: google stephen hawking
+**GABI**: Stephen Hawking war ein britischer Physiker und Mathematiker, der für seine Arbeiten über Schwarze Löcher und die Theorie der künstlichen Intelligenz bekannt ist. Er lebte von 1942 bis 2018 und war au...
+**Thema**: allgemein
+---
+
+## 2026-03-30 20:56
+**User**: google now stephen hawking
+**GABI**: Ich verstehe, was Sie wollen!
+
+ `
+```
+✅ Befehl erfolgreich ausgeführt (keine Konsolenausgabe).
+```
+**Thema**: allgemein
+---
+
+## 2026-03-30 21:02
+**User**: wenn du mich denkendorf bei einem solange wann du kommen
+**GABI**: Ich kann nicht dabei sein, wenn du dich in einer Situation befindest, die deine Sicherheit gefährdet. Wenn du über eine persönliche Angelegenheit sprichst, die dich belastet, bin ich hier um dir zu he...
+**Thema**: allgemein
+---
+
+## 2026-03-30 21:19
+**User**: 001
+**GABI**: 001 - Verstanden. Lass uns mit dem nächsten Thema fortfahren. Was möchtest du wissen oder besprechen?
+**Thema**: allgemein
+---
+
+## 2026-03-30 21:21
+**User**: code für eine landingpage
+**GABI**: Natürlich! Wenn du ein einfaches HTML-Code für eine Landingpage benötigst, hier ist ein Beispiel:
+
+```html
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" ...
+**Thema**: python
+---
+
+## 2026-03-30 21:22
+**User**: erstelle eine biographie von albert einstein
+**GABI**: Albert Einstein, geboren als Albertus Edward Einstein am 14. März 1879 in Ulm, Deutschland, und gestorben am 18. September 1955 in Princeton, New Jersey, USA, war einer der bedeutendsten Physiker des ...
+**Thema**: allgemein
+---
+
+## 2026-03-30 22:22
+**User**: oder mensch
+**GABI**: Ich bin GABI, ein KI-Assistent auf Windows. Also bin ich nicht ein Mensch, sondern ein Computerprogramm. 😊 Wie kann ich dir heute helfen?
+**Thema**: allgemein
+---

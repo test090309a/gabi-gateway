@@ -1,127 +1,98 @@
-host: "0.0.0.0"
-port: 8000
-api_key: "sysop"
-
-# === LOGGING ===
-logging:
-  level: "DEBUG"  # DEBUG zeigt alle LLM-Kommunikation
-  # Oder "INFO" für normale Logs, "DEBUG" für alles
-  
-  # Spezifische Logger
-  loggers:
-    ollama: "DEBUG"
-    self_correction: "DEBUG"
-    corpus_callosum: "DEBUG"
-    http_api: "DEBUG"
-
-# === VISION & WEBCAM ===
-vision:
+api_key: sysop
+auto_commands:
+- command: web_search
+  pattern: suche.*
+- command: web_search
+  pattern: was ist.*
+auto_exploration:
+  check_interval_seconds: 1800
+  idle_minutes: 60
+calendar:
+  enabled: false
+chat:
+  enable_code_blocks: true
+  enable_lists: true
+  format_markdown: true
+comfyui:
+  host: 127.0.0.1
+  port: 8188
+gmail:
+  credentials_path: credentials.json
   enabled: true
-  screenshot_dir: "screenshots"
-  webcam_dir: "screenshots/webcam"
-  auto_click_confidence: 0.75             # Threshold für automatische Klicks
-
+  token_path: token.json
+host: 0.0.0.0
+log_level: INFO
+logging:
+  level: DEBUG
+  loggers:
+    corpus_callosum: DEBUG
+    http_api: DEBUG
+    ollama: DEBUG
+    self_correction: DEBUG
+memory:
+  max_entries: 100
+  max_size: 10000
+ollama:
+  auto_max_model_size_b: 9
+  base_url: http://localhost:11434
+  default_model: qwen3-vl:4b
+  embedding_model: nomic-embed-text:latest
+  fast_router_model: qwen2.5:1.5b
+  host: 0.0.0.0:11434
+  port: 11434
+  preferred_code_models:
+  - qwen2.5-coder:7b
+  - deepseek-coder:6.7b
+  preferred_creative_models:
+  - llama3.1:8b
+  - mistral:latest
+  - sparksammy/samantha-uncensored-v5:latest
+  preferred_evaluator_models:
+  - llama3.1:8b
+  preferred_fast_models:
+  - llama3.1:8b
+  preferred_general_models:
+  - llama2:latest
+  - mistral:latest
+  preferred_vision_models:
+  - qwen3-vl:8b
+  - llama3.2-vision:11b
+  timeout_seconds: 600
+port: 8000
+self_correction:
+  enabled: true
+  evaluator_model: llama3.1:8b
+  max_iterations: 2
+  min_score_threshold: 0.8
+  models_per_iteration: 2
+  strategy: evaluator
+  timeout_per_model: 180
+shell:
+  allowed_commands: []
+  max_output_length: 10000
+  timeout: 30
+telegram:
+  bot_token: 8354278904:AAGAvxIsI4x2fWDNNw_EikfOFCWmaio_tPw
+  channel_id: '@meinneuerbotfueropenclaw_bot'
+  chat_id: 8027970088
+  enabled: true
+vision:
+  auto_click_confidence: 0.75
+  enabled: true
+  screenshot_dir: screenshots
+  webcam_dir: screenshots/webcam
+voice_settings:
+  max_record_time: 30.0
+  min_speech_duration: 0.2
+  silence_timeout: 0.8
+  vad_threshold: 0.5
 webcam:
   enabled: true
   motion_detection: true
-  motion_threshold: 25                    # Niedriger = empfindlicher
-
-# === WHISPER SPRACHSTEUERUNG ===
+  motion_threshold: 25
 whisper:
   enabled: true
-  server_url: "http://127.0.0.1:9090"
-  language: "de"  # Deutsch
-
-# === CHAT & ANTWORTEN ===
-chat:
-  format_markdown: true
-  enable_lists: true
-  enable_code_blocks: true
-
-# === AUTO-COMMANDS ===
-auto_commands:
-  - pattern: "suche.*"
-    command: "web_search"
-  - pattern: "was ist.*"
-    command: "web_search"
-
-ollama:
-  base_url: "http://localhost:11434"
-  default_model: "llama3.1:8b"          # Zuverlässiger als granite für Standard-Chat
-  fast_router_model: "qwen2.5:1.5b"     # oder "phi3:mini", "gemma2:2b" semantische suche mit shell befehlen
-  timeout_seconds: 600                  # 10 Minuten Timeout
-  # auto_max_model_size_b: 20           # Erhöht auf 20, damit gpt-oss:20b genutzt werden kann
-  auto_max_model_size_b: 9              # Begrenze auf 9B, damit alles auf der GPU bleibt
-  embedding_model: "nomic-embed-text:latest"
-  
-  preferred_fast_models:
-    - "llama3.1:8b"
-    # - "sam860/LFM2:2.6b"
-    # - "granite4:tiny-h"
-    # - "llama3.2:3b"
-    # - "qwen2.5-coder:7b"                # Viel schneller auf der 3060 als 14b
-    # - "deepseek-coder:6.7b"
-    
-  preferred_code_models:
-    # - "qwen2.5-coder:14b"
-    - "qwen2.5-coder:7b"                # Geändert von 14b auf 7b
-    - "deepseek-coder:6.7b"
-    
-  preferred_vision_models:
-    - "qwen3-vl:8b"
-    - "llama3.2-vision:11b"
-
-  # Spezialisierte Modelle für den Gabi Gateway
-  preferred_creative_models:
-    - "llama3.1:8b"
-    - "mistral:latest"
-    - "sparksammy/samantha-uncensored-v5:latest"
-
-  preferred_evaluator_models:
-    # - "deepseek-r1:14b"               # Absolut bestes Modell für Logik/Bewertung
-    # - "qwen2.5:14b"                   # Starker Backup-Evaluator
-    - "llama3.1:8b"                     # Dein "Richter", der noch in den VRAM passt
-
-# === SELF-CORRECTION LOOP ===
-self_correction:
-  enabled: true
-  max_iterations: 2                     # 2 Iterationen sind meist der "Sweet Spot" für Speed/Qualität
-  models_per_iteration: 2               # Lässt zwei Modelle gegeneinander antreten
-  strategy: "evaluator"                 # Nutzt das Reasoning-Modell zur Entscheidung
-  timeout_per_model: 180                # Etwas mehr Zeit für die 14B Modelle
-  min_score_threshold: 0.8              # Höherer Qualitätsanspruch
-  # evaluator_model: "deepseek-r1:14b"  # Das "Gehirn", das die Korrekturen anweist
-  evaluator_model: "llama3.1:8b"
-
-comfyui:
-  host: "127.0.0.1"
-  port: 8188
-
-telegram:
-  bot_token: "8354278904:AAGAvxIsI4x2fWDNNw_EikfOFCWmaio_tPw"
-  enabled: true
-  chat_id: 8027970088
-  channel_id: "@meinneuerbotfueropenclaw_bot"
-
-gmail:
-  enabled: true                         # Wichtig: auf true setzen!
-  credentials_path: "credentials.json"
-  token_path: "token.json"
-
-# === SHELL ===
-shell:
-  allowed_commands: []                  # Leeres Array = keine Einschränkung
-  timeout: 30
-  max_output_length: 10000
-
-# === AUTO-EXPLORATION ===
-auto_exploration:
-  idle_minutes: 60
-  check_interval_seconds: 1800 # 1800 Sekunden = 30 Minuten
-
-# === VOICE WHISPER ===
-voice_settings:
-  vad_threshold: 0.5        # Empfindlichkeit (0.0 bis 1.0)
-  min_speech_duration: 0.2  # Kürzeste erkannte Sprache (filtert Husten/Klicken)
-  silence_timeout: 0.8      # <--- DAS IST ENTSCHEIDEND: 800ms Stille = Ende
-  max_record_time: 30.0     # Sicherheitshalber nach 30 Sek. abbrechen
+  host: 127.0.0.1
+  language: de
+  port: 9090
+  server_url: http://127.0.0.1:9090

@@ -1,3 +1,4 @@
+const API_KEY_BEARER = 'sysop';  // Für Bearer Token Auth
 
 function addSystemMessage(content) {
     const div = document.createElement('div');
@@ -29,7 +30,12 @@ function exportChat() {
 
 async function showStatus() {
     try {
-        const response = await fetch('/api/status', { headers: { 'X-API-Key': apiKey } });
+        // Auch hier konsistent mit Bearer Token
+        const response = await fetch('/api/status', { 
+            headers: { 
+                'Authorization': 'Bearer sysop'  // Geändert!
+            } 
+        });
         const data = await response.json();
         addMessage(`**📊 System Status**\n\n**System:** ${data.system?.os || '?'}\n**Ollama:** ${data.ollama?.available ? '✅ Online' : '❌ Offline'}\n**Modelle:** ${data.ollama?.total_models || 0}\n**Speicher:** ${data.storage?.free_gb || '?'} GB frei`, 'assistant');
     } catch (error) {
@@ -72,8 +78,16 @@ async function toggleRecording() {
             voiceBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
             voiceBtn.classList.add('bg-red-500', 'hover:bg-red-600');
             voiceStatus.textContent = '🎙️ Aufnahme läuft...';
+            
+            // Automatischer Stop nach 5 Sekunden
+            setTimeout(() => {
+                if (isRecording && mediaRecorder && mediaRecorder.state === "recording") {
+                    mediaRecorder.stop();
+                }
+            }, 5000);
         } catch (err) {
             voiceStatus.textContent = '❌ Mikrofon nicht verfügbar';
+            console.error("Mikrofon Fehler:", err);
         }
     }
 }
@@ -82,13 +96,25 @@ async function transcribeAudio(blob) {
     const formData = new FormData();
     formData.append('file', blob, 'audio.webm');
     try {
+        voiceStatus.textContent = '🎤 Transkribiere...';
+        
         const response = await fetch('/api/whisper/transcribe/sync', {
             method: 'POST',
-            headers: { 'X-API-Key': apiKey },
+            headers: {
+                'Authorization': 'Bearer sysop'  // Wichtig: Bearer Token!
+            },
             body: formData
         });
+        
         const data = await response.json();
         voiceStatus.textContent = '';
+        
+        if (response.status === 403) {
+            console.error("API-Key ungültig!");
+            addSystemMessage(`❌ API-Key ungültig`);
+            voiceStatus.textContent = '❌ API-Key ungültig';
+            return;
+        }
         
         if (data.status === 'success' && data.text) {
             const userText = data.text.trim();
@@ -143,7 +169,7 @@ async function transcribeAudio(blob) {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'X-API-Key': apiKey
+                                'Authorization': 'Bearer sysop'  // Auch hier Bearer Token!
                             },
                             body: JSON.stringify({ message: telegramMessage })
                         });
@@ -211,7 +237,7 @@ async function transcribeAudio(blob) {
             }
             
         } else {
-            addSystemMessage(`❌ Transkription fehlgeschlagen`);
+            addSystemMessage(`❌ Transkription fehlgeschlagen: ${data.error || 'Unbekannt'}`);
             updateVoiceStatus(`❌ Transkription fehlgeschlagen`, 'error');
         }
     } catch (error) {
@@ -252,7 +278,9 @@ async function handleImageUpload(e) {
     try {
         const response = await fetch('/api/api/chat/image/analyze', {
             method: 'POST',
-            headers: { 'token': apiKey },
+            headers: { 
+                'Authorization': 'Bearer sysop'
+            },
             body: formData
         });
         const data = await response.json();
@@ -273,7 +301,11 @@ async function handleImageUpload(e) {
 // ========== MODEL MANAGEMENT ==========
 async function loadModels() {
     try {
-        const response = await fetch('/api/models', { headers: { 'X-API-Key': apiKey } });
+        const response = await fetch('/api/models', { 
+            headers: { 
+                'Authorization': 'Bearer sysop' 
+            } 
+        });
         const data = await response.json();
         if (data.status === 'success') {
             currentModelSpan.textContent = data.current_model || defaultModel;
@@ -299,7 +331,10 @@ async function switchModel(name) {
     try {
         const response = await fetch('/api/models/switch', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': 'Bearer sysop'
+            },
             body: JSON.stringify({ model: name })
         });
         const data = await response.json();
@@ -332,7 +367,12 @@ async function checkOllamaStatus() {
 async function loadTelegramMessages() {
     const container = document.getElementById('telegramModalMessages');
     try {
-        const response = await fetch('/api/telegram/messages?limit=100', { headers: { 'X-API-Key': apiKey } });
+        // Ändere von X-API-Key zu Authorization Bearer
+        const response = await fetch('/api/telegram/messages?limit=100', { 
+            headers: { 
+                'Authorization': 'Bearer sysop'  // Geändert!
+            } 
+        });
         const data = await response.json();
         if (data.status === 'success' && data.messages?.length) {
             container.innerHTML = '';
@@ -349,6 +389,7 @@ async function loadTelegramMessages() {
             container.innerHTML = '<div class="text-center opacity-50 py-8"><i class="fab fa-telegram text-4xl mb-2"></i><p>Keine Nachrichten</p></div>';
         }
     } catch (e) {
+        console.error('Telegram load error:', e);
         container.innerHTML = '<div class="text-center text-red-500 py-8">Fehler beim Laden</div>';
     }
 }
@@ -361,16 +402,26 @@ async function sendTelegramMsg() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     try {
-        await fetch('/api/telegram/send', {
+        // Ändere von X-API-Key zu Authorization Bearer
+        const response = await fetch('/api/telegram/send', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': 'Bearer sysop'  // Geändert!
+            },
             body: JSON.stringify({ message: msg })
         });
+        const data = await response.json();
         input.value = '';
-        addSystemMessage(`✅ Telegram: ${msg.substring(0, 50)}...`);
+        if (data.status === 'success') {
+            addSystemMessage(`✅ Telegram: ${msg.substring(0, 50)}...`);
+        } else {
+            addSystemMessage(`❌ Telegram Fehler: ${data.message || 'Unbekannt'}`);
+        }
         setTimeout(loadTelegramMessages, 500);
     } catch (e) {
-        addSystemMessage(`❌ Telegram Fehler`);
+        console.error('Telegram send error:', e);
+        addSystemMessage(`❌ Telegram Fehler: ${e.message}`);
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-paper-plane"></i>';

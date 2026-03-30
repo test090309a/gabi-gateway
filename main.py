@@ -61,12 +61,12 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     
     try:
-        # 1. Config laden - WICHTIG: explizit laden!
-        from gateway.config import config
+        # 1. Config laden - wird automatisch beim Import geladen
+        from config import config
         config_path = Path("config.yaml")
         
         if config_path.exists():
-            config.load(str(config_path))
+            # config.load() entfernt - config wird automatisch geladen
             logger.info(f"✅ Config geladen von {config_path}")
         else:
             logger.error(f"❌ Config file not found: {config_path}")
@@ -155,7 +155,7 @@ async def lifespan(app: FastAPI):
     
     try:
         # Telegram Bot stoppen
-        from gateway.config import config
+        from config import config
         telegram_config = config.data.get("telegram", {})
         if telegram_config.get("enabled", False):
             try:
@@ -326,7 +326,8 @@ async def _create_minimal_dashboard(path: Path):
 @app.get("/")
 async def root():
     """Root-Endpunkt - Zeigt das Dashboard oder API-Info."""
-    dashboard_path = static_dir / "index.html"
+    static_dir_local = Path(__file__).parent / "static"
+    dashboard_path = static_dir_local / "index.html"
     
     if dashboard_path.exists():
         try:
@@ -412,6 +413,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Stelle sicher, dass das static-Verzeichnis existiert
+    static_dir = Path(__file__).parent / "static"
     static_dir.mkdir(exist_ok=True)
 
     # Fenster‑Titel im Terminal setzen
@@ -423,7 +425,7 @@ if __name__ == "__main__":
         print(f"\033]0;{title}\007", end="")
 
     uvicorn.run(
-        "gateway.main:app",
+        "main:app",  # Geändert von "gateway.main:app" zu "main:app" weil wir im Root sind
         host=args.host,
         port=args.port,
         reload=args.reload,

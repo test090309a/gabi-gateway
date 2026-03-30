@@ -631,7 +631,12 @@ async def handle_command(message: str, token: str) -> Dict[str, Any]:
     # ===== VISION =====
     if command == "vision":
         try:
+            import config as cfg  # Alias verwenden, um Verwirrung zu vermeiden
             from gateway.integrations.gabi_vision import get_gabi_vision
+            from gateway.ollama_client import ollama_client
+            from gateway.core.router import _pick_preferred_available, _pick_best_model
+            from gateway.utils.model_helpers import _as_model_pref_list
+            
             vision = get_gabi_vision()
             if not vision:
                 return {"status": "error", "reply": "❌ Vision-Modul nicht verfügbar"}
@@ -654,13 +659,10 @@ async def handle_command(message: str, token: str) -> Dict[str, Any]:
             with open(image_path, "rb") as f:
                 img_base64 = __import__('base64').b64encode(f.read()).decode("utf-8")
             
-            from gateway.ollama_client import ollama_client
-            from gateway.core.router import _pick_preferred_available, _pick_best_model
-            from gateway.utils.model_helpers import _as_model_pref_list
-            
             models_info = ollama_client.list_models()
             available = [m.get("name") for m in models_info.get("models", []) if m.get("name")]
-            preferred_vision = _as_model_pref_list(config.get("ollama.preferred_vision_models")) or ["qwen3-vl:8b"]
+            # Hier cfg.config.get() statt config.get()
+            preferred_vision = _as_model_pref_list(cfg.config.get("ollama.preferred_vision_models")) or ["qwen3-vl:8b"]
             vision_model = _pick_preferred_available(available, preferred_vision)
             
             if not vision_model:
@@ -685,53 +687,92 @@ async def handle_command(message: str, token: str) -> Dict[str, Any]:
             }
         except Exception as e:
             logger.error(f"Vision-Fehler: {e}")
-            return {"status": "error", "reply": f"❌ Vision-Fehler: {e}"}
+            import traceback
+            traceback.print_exc()
+            return {"status": "error", "reply": f"❌ Vision-Fehler: {str(e)}"}
     
     # ===== HELP =====
     if command == "help":
         help_text = """
-**🔧 VERFÜGBARE BEFEHLE:**
+        === GATEWAY BEFEHLE ===
 
-**📁 CHAT-MANAGEMENT:**
-`/new` - Neuen Chat starten (aktuellen archivieren)
-`/reset` - Chat zurücksetzen
-`/archives` - Alle Chat-Archive anzeigen
-`/load <id>` - Bestimmtes Archiv laden
+        📁 CHAT-MANAGEMENT
+        /new        - Neuen Chat starten (aktuellen archivieren)
+        /reset      - Chat zurücksetzen (ohne Archiv)
+        /archives   - Alle gespeicherten Chat-Archive anzeigen
+        /load <id>  - Bestimmtes Archiv laden (ID aus /archives)
 
-**🧠 MEMORY:**
-`/merken <inhalt>` - Etwas dauerhaft speichern
-`/gemerkt` - Gemerkte Einträge abrufen
-`/memory` - Letzte Erinnerungen anzeigen
+        🧠 MEMORY & NOTIZEN
+        /merken <inhalt>  - Etwas dauerhaft speichern
+        /gemerkt          - Alle gemerkten Einträge anzeigen
+        /memory           - Letzte Erinnerungen anzeigen
 
-**💻 SHELL:**
-`/shell <befehl>` - Shell-Befehl ausführen
+        💻 SHELL BEFEHLE
+        /shell <befehl>   - Führt einen System-Befehl aus
+                            Beispiele: /shell dir
+                                    /shell echo Hallo > datei.txt
+                                    /shell python --version
 
-**🖥️ GUI:**
-`/gui open <programm>` - Programm öffnen
-`/gui goto <url>` - URL im Browser öffnen
-`/gui click <x> <y>` - Mausklick
-`/gui type <text>` - Texteingabe
-`/gui screenshot` - Screenshot machen
-`/gui windows` - Fensterliste
+        🖥️ GUI CONTROLLER
+        /gui open <programm>   - Programm öffnen (chrome, notepad)
+        /gui goto <url>        - URL im Browser öffnen
+        /gui click <x> <y>     - Mausklick an Position
+        /gui type <text>       - Text über Tastatur eingeben
+        /gui press <taste>     - Taste drücken (enter, tab, esc)
+        /gui screenshot        - Screenshot machen
+        /gui windows           - Alle offenen Fenster anzeigen
 
-**🤖 MODEL:**
-`/model` - Aktuelles Modell anzeigen
-`/model liste` - Modelle anzeigen
-`/model <name>` - Modell wechseln
+        🎨 COMFYUI BILDGENERIERUNG
+        /comfy status          - ComfyUI Server Status prüfen
+        /comfy generate <prompt> - Bild generieren
+        /comfy gallery         - Generierte Bilder anzeigen
+        /comfy delete <filename> - Einzelnes Bild löschen
+        /comfy delete-all      - Alle Bilder löschen
 
-**🔍 AUTO-EXPLORATION:**
-`/explore` - Status anzeigen
-`/explore now` - Sofortige Exploration
-`/sleep` - Schlafphase ausführen
+        🤖 MODEL MANAGEMENT
+        /model              - Aktuelles Modell anzeigen
+        /model liste        - Alle verfügbaren Modelle anzeigen
+        /model <name>       - Modell wechseln (z.B. /model llama3)
 
-**📷 VISION:**
-`/vision` - Webcam-Foto analysieren
-`/vision <pfad>` - Bild analysieren
+        🔍 AUTO-EXPLORATION
+        /explore            - Status der Auto-Exploration anzeigen
+        /explore now        - Sofortige System-Exploration starten
+        /sleep              - Schlafphase ausführen (Memory kompakt)
 
-**📊 SYSTEM:**
-`/status` - System-Status anzeigen
-`/help` - Diese Hilfe
-"""
+        📷 VISION & WEBCAM
+        /vision             - Webcam-Foto machen und analysieren
+        /vision <pfad>      - Bestimmtes Bild analysieren
+                            (z.B. /vision screenshots/bild.jpg)
+
+        📧 GMAIL INTEGRATION
+        /gmail list         - Letzte E-Mails anzeigen
+        /gmail get <id>     - Bestimmte E-Mail lesen
+        /gmail reply <id> <text> - Auf E-Mail antworten
+
+        📱 TELEGRAM INTEGRATION
+        /telegram status    - Bot-Status anzeigen
+        /telegram users     - Aktive Benutzer anzeigen
+        /telegram send <msg> - Nachricht an ALLE senden
+        /telegram send --to <id> <msg> - An bestimmten Empfänger
+
+        🌐 WEB-SUCHE
+        "google <frage>"    - Führt eine Web-Suche durch
+        "suche im internet" - Alternativer Such-Trigger
+                            Beispiel: "google Stephen Hawking"
+
+        🎤 SPRACHSTEUERUNG
+        "Hey GABI"          - Aktiviert die Spracherkennung
+                            Danach einfach sprechen
+        Mikrofon-Button     - Manuelle Aufnahme starten
+
+        📊 SYSTEM
+        /status             - Detaillierten System-Status anzeigen
+        /help               - Diese Hilfe anzeigen
+
+        💡 TIPP: Nutze Pfeiltasten ↑↓ für Befehlshistorie
+        💡 @ für Datei-Vorschläge im Chat
+        💡 Sprachsteuerung: Sage "Hey GABI" und dann deine Frage
+        """
         return {"status": "success", "reply": help_text}
     
     # ===== GMAIL =====
@@ -1042,6 +1083,155 @@ async def handle_command(message: str, token: str) -> Dict[str, Any]:
             "reply": "⏹️ Sprachaufnahme gestoppt."
         }
     
+    # ===== COMFYUI BILDGENERIERUNG =====
+    if command == "comfy":
+        if not args:
+            return {
+                "status": "success",
+                "reply": "🎨 **ComfyUI Befehle:**\n\n" +
+                        "`/comfy status` - ComfyUI Server Status prüfen\n" +
+                        "`/comfy generate <prompt>` - Bild generieren\n" +
+                        "`/comfy gallery` - Generierte Bilder anzeigen\n" +
+                        "`/comfy delete <filename>` - Einzelnes Bild löschen\n" +
+                        "`/comfy delete-all` - Alle Bilder löschen\n\n" +
+                        "Beispiel: `/comfy generate eine schöne Landschaft`"
+            }
+        
+        subcmd = args[0].lower()
+        
+        try:
+            import aiohttp
+            import json
+            import asyncio
+            from pathlib import Path
+            from config import config
+            from datetime import datetime
+            
+            comfy_host = config.get("comfyui.host", "127.0.0.1")
+            comfy_port = config.get("comfyui.port", 8188)
+            base_url = f"http://{comfy_host}:{comfy_port}"
+            
+            if subcmd == "status":
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(f"{base_url}/system_stats", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                            if resp.status == 200:
+                                return {"status": "success", "reply": "✅ ComfyUI Server läuft"}
+                            else:
+                                return {"status": "error", "reply": "❌ ComfyUI Server nicht erreichbar"}
+                except Exception as e:
+                    return {"status": "error", "reply": f"❌ ComfyUI Server nicht erreichbar: {str(e)}"}
+            
+            elif subcmd == "generate":
+                if len(args) < 2:
+                    return {"status": "error", "reply": "❌ Bitte Prompt angeben: `/comfy generate <prompt>`"}
+                prompt = " ".join(args[1:])
+                
+                # Lade Workflow aus workflow_api.json
+                workflow_path = Path("workflow_api.json")
+                if not workflow_path.exists():
+                    return {"status": "error", "reply": "❌ workflow_api.json nicht gefunden"}
+                
+                with open(workflow_path, "r", encoding="utf-8") as f:
+                    workflow = json.load(f)
+                
+                # Ersetze den Prompt im Workflow (Node 6 ist CLIPTextEncode für positiven Prompt)
+                if "6" in workflow and workflow["6"].get("class_type") == "CLIPTextEncode":
+                    workflow["6"]["inputs"]["text"] = prompt
+                    logger.info(f"✅ Prompt ersetzt in Node 6: {prompt}")
+                else:
+                    return {"status": "error", "reply": "❌ Node 6 nicht gefunden oder kein CLIPTextEncode"}
+                
+                # Sende Prompt an ComfyUI
+                async with aiohttp.ClientSession() as session:
+                    payload = {"prompt": workflow}
+                    async with session.post(f"{base_url}/prompt", json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            prompt_id = data.get("prompt_id")
+                            logger.info(f"✅ Prompt gesendet, ID: {prompt_id}")
+                            
+                            # Warte auf Ergebnis - 90 Sekunden
+                            for _ in range(90):
+                                await asyncio.sleep(1)
+                                async with session.get(f"{base_url}/history/{prompt_id}") as hist_resp:
+                                    if hist_resp.status == 200:
+                                        history = await hist_resp.json()
+                                        if prompt_id in history:
+                                            output = history[prompt_id]["outputs"]
+                                            
+                                            # Node 9 ist SaveImage
+                                            if "9" in output and "images" in output["9"]:
+                                                image = output["9"]["images"][0]
+                                                filename = image["filename"]
+                                                subfolder = image.get("subfolder", "")
+                                                
+                                                # Bild speichern
+                                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                                save_path = Path(f"screenshots/comfy/comfy_{timestamp}.png")
+                                                save_path.parent.mkdir(parents=True, exist_ok=True)
+                                                
+                                                # Bild herunterladen
+                                                async with session.get(f"{base_url}/view?filename={filename}&subfolder={subfolder}") as img_resp:
+                                                    if img_resp.status == 200:
+                                                        img_data = await img_resp.read()
+                                                        save_path.write_bytes(img_data)
+                                                        
+                                                        return {
+                                                            "status": "success",
+                                                            "reply": f"✅ **Bild generiert!**\n\n📝 Prompt: {prompt}\n📁 Gespeichert: {save_path}",
+                                                            "image_path": str(save_path)
+                                                        }
+                            
+                            return {"status": "error", "reply": "❌ Zeitüberschreitung beim Generieren des Bildes (90 Sekunden)"}
+                        else:
+                            error_text = await resp.text()
+                            logger.error(f"❌ ComfyUI Fehler {resp.status}: {error_text}")
+                            return {"status": "error", "reply": f"❌ ComfyUI Fehler {resp.status}: {error_text[:200]}"}
+            
+            elif subcmd == "gallery":
+                comfy_dir = Path("screenshots/comfy")
+                images = []
+                if comfy_dir.exists():
+                    for img in sorted(comfy_dir.glob("*.png"), reverse=True)[:10]:
+                        images.append(f"- {img.name}")
+                
+                if images:
+                    return {"status": "success", "reply": "🖼️ **Letzte generierte Bilder:**\n\n" + "\n".join(images)}
+                else:
+                    return {"status": "success", "reply": "📭 Keine generierten Bilder gefunden."}
+            
+            elif subcmd == "delete":
+                if len(args) < 2:
+                    return {"status": "error", "reply": "❌ Bitte Dateinamen angeben: `/comfy delete <filename>`"}
+                filename = args[1]
+                comfy_dir = Path("screenshots/comfy")
+                filepath = comfy_dir / filename
+                if filepath.exists():
+                    filepath.unlink()
+                    return {"status": "success", "reply": f"✅ Bild gelöscht: {filename}"}
+                else:
+                    return {"status": "error", "reply": f"❌ Datei nicht gefunden: {filename}"}
+            
+            elif subcmd == "delete-all":
+                comfy_dir = Path("screenshots/comfy")
+                count = 0
+                if comfy_dir.exists():
+                    for img in comfy_dir.glob("*.png"):
+                        img.unlink()
+                        count += 1
+                return {"status": "success", "reply": f"✅ {count} Bilder gelöscht"}
+            
+            else:
+                return {"status": "error", "reply": f"❌ Unbekannter ComfyUI-Befehl: `{subcmd}`\n\nVerwende `/comfy` für Hilfe."}
+                
+        except Exception as e:
+            logger.error(f"ComfyUI command error: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"status": "error", "reply": f"❌ ComfyUI-Fehler: {str(e)}"}
+
+
     
     
     
